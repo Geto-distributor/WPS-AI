@@ -355,12 +355,11 @@
       // 统一风格 modal
       "unifyModal", "unifyCloseBtn", "unifyExecuteBtn",
       "unifyOutlineText", "unifyExtractBtn", "unifyClearBtn", "unifyAutoImage",
-      "modelSelect", "refreshModelsBtn",
-      "modelSelectBtn", "modelSelectLabel", "modelSelectCaps", "modelSelectPopup",
+      "modelSelect",
       // 新版设置弹窗
       "settingsModal", "settingsModalCloseBtn", "openSettingsModalBtn",
       "localModelGuideSlot", "chatProvidersList", "addChatProviderBtn",
-      "skillsList", "skillImportBtn", "skillCloudRefreshBtn", "skillImportFile",
+      "skillsList", "skillImportBtn", "skillCloudRefreshBtn", "skillImportFile", "skillImportDirBtn", "skillImportDir",
       "skillsSearchInput", "skillsCategoryChips",
       "mcpServerEnabledInput", "mcpStatusBadge", "mcpToolCount", "mcpLastError",
       "mcpConfigSnippet", "mcpCopyConfigBtn", "mcpToolsList",
@@ -376,7 +375,6 @@
       "chatInput", "chatSendBtn", "chatStopBtn",
       // 聊天面板体验：跳到最新 + 折叠中间轮次 + 单次模型 override
       "chatJumpLatest", "chatFoldToggle",
-      "chatModelOverrideBtn", "chatModelOverrideBar", "chatModelOverrideText", "chatModelOverrideClearBtn",
       // 改动记录
       "historyView", "historyBadge", "historyCount", "historyClearBtn",
       "historyEmpty", "historyList",
@@ -508,16 +506,6 @@
     try { global.WpsAiLog?.dev?.("capabilities.override", "set", { providerId, modelId, capKey, value, source: source || "manual" }); } catch (e) {}
     try { persistSettings(); } catch (e) {}
     try { populateModelSelector(els.modelSelect?.value); } catch (e) {}
-  }
-  // 点击角标：有显式覆盖 → 清掉回到自动；否则 → 强制成「当前判断的反面」。两步一个来回，可逆。
-  function toggleCapChipOverride(providerId, modelId, capKey) {
-    if (!CAP_KEYS.includes(capKey)) return;
-    if (capOverrideValue(providerId, modelId, capKey) !== undefined) {
-      setUserCapabilityOverride(providerId, modelId, capKey, null, "manual"); // 回到自动
-    } else {
-      const cur = global.WpsAiCapabilities?.getCapabilities?.(modelId, providerId) || {};
-      setUserCapabilityOverride(providerId, modelId, capKey, !cur[capKey], "manual"); // 反转
-    }
   }
 
   // 把服务端「模型不接受多模态/附件内容」这类晦涩报错，翻译成用户能看懂、能行动的提示。
@@ -1937,24 +1925,6 @@
     }
     els.capThinking?.addEventListener("click", (ev) => { ev.stopPropagation(); showThinkingMenu(els.capThinking); });
 
-    // 自定义模型下拉：按钮点击开/关；点弹层外面关闭；Esc 关闭
-    els.modelSelectBtn?.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      toggleModelPopup();
-    });
-    // 点外面关闭：click + pointerdown 双监听（mac WKWebView 的 click 合成不可靠）
-    const closeModelPopupOnOutside = (ev) => {
-      if (!els.modelSelectPopup || els.modelSelectPopup.classList.contains("hidden")) return;
-      if (els.modelSelectPopup.contains(ev.target) || els.modelSelectBtn?.contains(ev.target)) return;
-      closeModelPopup();
-    };
-    document.addEventListener("click", closeModelPopupOnOutside);
-    document.addEventListener("pointerdown", closeModelPopupOnOutside);
-    document.addEventListener("keydown", (ev) => {
-      if (ev.key === "Escape" && !els.modelSelectPopup?.classList.contains("hidden")) {
-        closeModelPopup();
-      }
-    });
   }
 
   // 在用户消息气泡下方追加一行附件缩略图 chip（live + history 回放共用）
@@ -2029,7 +1999,7 @@
   function setBusy(isBusy) {
     [
       els.signInBtn, els.exchangeCodeBtn, els.signOutBtn,
-      els.saveSettingsBtn, els.testChatConnBtn, els.refreshModelsBtn
+      els.saveSettingsBtn, els.testChatConnBtn
     ].forEach((b) => { if (b) b.disabled = isBusy; });
   }
 
@@ -2764,7 +2734,7 @@
 
   // ---------------- Models ----------------
 
-  // ---- 模型缓存（按 provider id 分桶，让 header 下拉能横向列出多家） ----
+  // ---- 模型缓存（按 provider id 分桶，供设置卡片里的「默认模型」下拉用） ----
   // 每个 provider 上次成功 listModels 的结果存这里；refresh 按钮只刷"当前选中" provider
   const MODELS_CACHE_KEY = "lingxi_models_cache_v1";
   let modelsByProvider = {};
@@ -2842,16 +2812,19 @@
     populateModelSelector(selected);
   }
 
-  // 重新渲染 header 下拉：hidden select 只放当前选中模型一条（兼容 .value 读取的老代码）；
-  // 真正可见的 popup 列出全部 enabled providers × 各自的 modelId
+  // 同步隐藏 <select>（很多老代码读 .value）和 activeChatModel。面板上没有模型下拉：
+  // 固定用唯一启用的那家供应商的「默认模型」；它没填默认模型时才回退到 preferredModelId / 上次选中 / 第一条。
   function populateModelSelector(preferredModelId) {
     if (!els.modelSelect) return;
     const items = collectMultiProviderItems();
     const { providerId: curPid, modelId: curMid } = getActiveChatModel();
+    const enabledEntry = (currentSettings.chatProviders || []).find((p) => p.enabled) || null;
 
-    // 选中目标：优先用 preferredModelId（refresh 后保留用户选择），否则 activeChatModel，否则第一条
     let pickedItem = null;
-    if (preferredModelId) {
+    if (enabledEntry?.defaultModel) {
+      pickedItem = items.find((it) => it.providerId === enabledEntry.id && it.modelId === enabledEntry.defaultModel);
+    }
+    if (!pickedItem && preferredModelId) {
       pickedItem = items.find((it) => it.providerId === curPid && it.modelId === preferredModelId);
       if (!pickedItem) pickedItem = items.find((it) => it.modelId === preferredModelId);
     }
@@ -2865,11 +2838,10 @@
     if (!pickedItem) {
       const opt = document.createElement("option");
       opt.value = "";
-      opt.textContent = "（请在设置里启用至少一个供应商）";
+      opt.textContent = "（请在设置里启用一个供应商）";
       opt.disabled = true;
       els.modelSelect.appendChild(opt);
       els.modelSelect.value = "";
-      renderMultiModelPopup(items, null);
       updateCapabilityBadges();
       return;
     }
@@ -2882,174 +2854,7 @@
     });
     els.modelSelect.value = pickedItem.modelId;
     setActiveChatModel(pickedItem.providerId, pickedItem.modelId);
-    renderMultiModelPopup(items, pickedItem);
     updateCapabilityBadges();
-  }
-
-  // 渲染下拉浮层：分组按 provider；每行 "[Provider] modelId" + 能力图标
-  function renderMultiModelPopup(items, selected) {
-    if (!els.modelSelectPopup || !els.modelSelectLabel || !els.modelSelectCaps) return;
-    els.modelSelectPopup.innerHTML = "";
-
-    if (items.length === 0) {
-      els.modelSelectLabel.textContent = "（请在设置里启用至少一个供应商）";
-      els.modelSelectCaps.innerHTML = "";
-      const empty = document.createElement("div");
-      empty.className = "model-select-popup-item disabled";
-      empty.innerHTML = `<span class="model-select-popup-item-label">没有可用模型</span>`;
-      els.modelSelectPopup.appendChild(empty);
-      return;
-    }
-
-    // header 按钮上的 label = "<provider> · <model>"，能力 chip 取当前选中模型
-    if (selected) {
-      els.modelSelectLabel.textContent = `${selected.providerLabel} · ${selected.modelId}`;
-      els.modelSelectCaps.innerHTML = capChipsHtmlForButton(selected.modelId, selected.providerId);
-    } else {
-      els.modelSelectLabel.textContent = "（请选择模型）";
-      els.modelSelectCaps.innerHTML = "";
-    }
-
-    // 按 provider 分组渲染：用一个分组 header + 各 model 行
-    const byProvider = new Map();
-    items.forEach((it) => {
-      if (!byProvider.has(it.providerId)) byProvider.set(it.providerId, { label: it.providerLabel, models: [] });
-      byProvider.get(it.providerId).models.push(it);
-    });
-
-    // mac WPS 的 WKWebView 对非交互元素（div）的 click 合成不可靠：弹层能开
-    //（header 按钮是原生 <button>）但 div 行点了没反应，Win 的 CEF 正常。
-    // 三重修：① 行改真 <button>（原生可点性）② pointerup 主路 + click 兜底
-    //（双触发 400ms 去重）③ stopPropagation 防外部关闭监听抢跑。
-    const bindActivate = (el, fn) => {
-      let handledAt = 0;
-      const wrap = (ev) => {
-        const now = Date.now();
-        if (now - handledAt < 400) return; // pointerup 与合成 click 双触发去重
-        handledAt = now;
-        ev.stopPropagation();
-        fn(ev);
-      };
-      el.addEventListener("pointerup", wrap);
-      el.addEventListener("click", wrap);
-    };
-
-    const collapsed = getCollapsedProviders();
-    byProvider.forEach((group, providerId) => {
-      const isCollapsed = collapsed.has(providerId);
-      const head = document.createElement("button");
-      head.type = "button";
-      head.className = "model-select-popup-item model-group-head";
-      head.dataset.providerId = providerId;
-      // 修 B17：group.label / modelId 来自 provider 的 /models 响应（可能是不可信中转），转义防注入。
-      head.innerHTML = `<span class="model-select-popup-item-label"><span class="model-group-arrow">${isCollapsed ? "▸" : "▾"}</span> ${escapeHtml(group.label)}</span><span class="model-group-count">${group.models.length}</span>`;
-      const body = document.createElement("div");
-      body.className = "model-group-body" + (isCollapsed ? " hidden" : "");
-      body.dataset.providerId = providerId;
-      bindActivate(head, () => {
-        const nowCollapsed = !body.classList.contains("hidden");
-        body.classList.toggle("hidden", nowCollapsed);
-        const arrow = head.querySelector(".model-group-arrow");
-        if (arrow) arrow.textContent = nowCollapsed ? "▸" : "▾";
-        setProviderCollapsed(providerId, nowCollapsed);
-      });
-      els.modelSelectPopup.appendChild(head);
-
-      group.models.forEach((it) => {
-        const item = document.createElement("button");
-        item.type = "button";
-        const isSel = selected && selected.providerId === providerId && selected.modelId === it.modelId;
-        item.className = "model-select-popup-item" + (isSel ? " selected" : "");
-        item.setAttribute("role", "option");
-        item.dataset.providerId = providerId;
-        item.dataset.modelId = it.modelId;
-        item.innerHTML = `
-          <span class="model-select-popup-item-label" style="padding-left:14px;">${escapeHtml(it.modelId)}</span>
-          <span class="model-select-popup-item-caps">${capChipsHtmlForItem(it.modelId, it.providerId)}</span>
-        `;
-        bindActivate(item, () => {
-          setActiveChatModel(providerId, it.modelId);
-          if (els.modelSelect) {
-            els.modelSelect.value = it.modelId;
-            els.modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
-          }
-          closeModelPopup();
-          populateModelSelector(it.modelId);
-        });
-        // ① 能力角标可点击手动覆盖：bindActivate 已 stopPropagation，点角标不会连带选中该模型
-        item.querySelectorAll(".cap-chip").forEach((chip) => {
-          bindActivate(chip, () => toggleCapChipOverride(providerId, it.modelId, chip.dataset.cap));
-        });
-        body.appendChild(item);
-      });
-      els.modelSelectPopup.appendChild(body);
-    });
-  }
-
-  // 模型下拉：按供应商折叠状态（持久化）
-  const MODEL_GROUP_COLLAPSE_KEY = "lingxi_model_group_collapsed_v1";
-  function getCollapsedProviders() {
-    try { return new Set(JSON.parse(global.WpsAiStore.getItem(MODEL_GROUP_COLLAPSE_KEY) || "[]")); } catch (e) { return new Set(); }
-  }
-  function setProviderCollapsed(providerId, collapsed) {
-    const s = getCollapsedProviders();
-    if (collapsed) s.add(providerId); else s.delete(providerId);
-    try { global.WpsAiStore.setItem(MODEL_GROUP_COLLAPSE_KEY, JSON.stringify(Array.from(s))); } catch (e) {}
-  }
-
-  // SVG 图标常量：弹层每条 + header 按钮里的能力指示器
-  // image=画框 / pdf=文档 / thinking=灯泡
-  const CAP_ICON_SVG = {
-    image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
-    pdf:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>',
-    thinking: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg>',
-    // 扳手图标表示工具调用 / function calling 能力
-    tools: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>'
-  };
-  const CAP_LABEL = { image: "支持图像", pdf: "支持 PDF", thinking: "深度思考", tools: "支持工具调用（可读写文档）" };
-
-  // 当前选中模型旁边的精简 chip 串（只显示"支持"的能力，不画占位）
-  function capChipsHtmlForButton(modelId, providerId) {
-    const cap = global.WpsAiCapabilities?.getCapabilities?.(modelId, providerId) || { image: false, pdf: false, thinking: false, tools: true };
-    return ["image", "pdf", "thinking", "tools"]
-      .filter((k) => cap[k])
-      .map((k) => `<span title="${CAP_LABEL[k]}">${CAP_ICON_SVG[k]}</span>`)
-      .join("");
-  }
-
-  // 弹层每条：模型名 + 四个图标（亮=支持/灰=不支持），用同位置占位让所有行对齐。
-  // 角标可点击手动覆盖（①）：点一下在「自动 ⇄ 强制反转」间切换，手动覆盖过的带一个小圆点。
-  // 覆盖持久化、跨会话保留，优先级高于 models.dev 目录和名字正则。
-  function capChipsHtmlForItem(modelId, providerId) {
-    const cap = global.WpsAiCapabilities?.getCapabilities?.(modelId, providerId) || { image: false, pdf: false, thinking: false, tools: true };
-    return ["image", "pdf", "thinking", "tools"]
-      .map((k) => {
-        const on = !!cap[k];
-        const forced = capOverrideValue(providerId, modelId, k) !== undefined;
-        const cls = "cap-chip " + (on ? "cap-on" : "cap-off") + (forced ? " cap-forced" : "");
-        const base = on ? CAP_LABEL[k] : `${CAP_LABEL[k]}（不支持）`;
-        const tip = `${base}${forced ? " · 已手动设置" : ""} · 点击切换（自动/强制）`;
-        return `<span class="${cls}" role="button" tabindex="0" data-cap="${k}" title="${tip}">${CAP_ICON_SVG[k]}</span>`;
-      })
-      .join("");
-  }
-
-  function openModelPopup() {
-    if (!els.modelSelectPopup || !els.modelSelectBtn) return;
-    els.modelSelectPopup.classList.remove("hidden");
-    els.modelSelectBtn.setAttribute("aria-expanded", "true");
-    // 滚动到当前选中项可见
-    const sel = els.modelSelectPopup.querySelector(".model-select-popup-item.selected");
-    if (sel) try { sel.scrollIntoView({ block: "nearest" }); } catch (e) {}
-  }
-  function closeModelPopup() {
-    if (!els.modelSelectPopup || !els.modelSelectBtn) return;
-    els.modelSelectPopup.classList.add("hidden");
-    els.modelSelectBtn.setAttribute("aria-expanded", "false");
-  }
-  function toggleModelPopup() {
-    if (els.modelSelectPopup?.classList.contains("hidden")) openModelPopup();
-    else closeModelPopup();
   }
 
   // 刷新 header 上的能力 chip（图像/PDF/思考）以及附件 chip 警告
@@ -3068,9 +2873,6 @@
       if (lbl) lbl.textContent = THINKING_LEVEL_LABEL[level] || "中";
       els.capThinking.title = `思考强度：${THINKING_LEVEL_LABEL[level]}（点击切换）`;
     }
-    // 下拉按钮的 label / 能力 chip / popup 高亮交给 renderMultiModelPopup 统一管，
-    // 这里只刷头部能力 chip 颜色和聊天工具栏的附件警告
-    if (els.modelSelectCaps) els.modelSelectCaps.innerHTML = model ? capChipsHtmlForButton(model, providerId) : "";
     renderAttachments();
     updateAttachActiveBtn();
   }
@@ -3373,6 +3175,7 @@
     // 切到「技能」时按需渲染（首次进入或外部新增技能后都会重渲）
     if (name === "skills") {
       renderSkillsList();
+      global.WpsAiSkills?.refresh?.().then(() => renderSkillsList()).catch(() => {});
       // 后台刷新云端技能（best-effort），拉到后重渲；失败用缓存，不打扰用户
       global.WpsAiSkills?.loadCloud?.().then((skills) => {
         if (skills && skills.length) renderSkillsList();
@@ -4004,14 +3807,23 @@
       desc.textContent = skill.description || "（无描述）";
       body.appendChild(row1);
       body.appendChild(desc);
+      const fileCount = Array.isArray(skill.files) ? skill.files.length : 0;
+      if (fileCount) {
+        const filesNote = document.createElement("div");
+        filesNote.className = "skill-item-desc";
+        filesNote.textContent = i18nT("附 {n} 个参考文件", { n: fileCount });
+        filesNote.title = skill.files.map((f) => f.path).join("\n");
+        body.appendChild(filesNote);
+      }
 
       const actions = document.createElement("div");
       actions.className = "skill-item-actions";
       const previewBtn = document.createElement("button");
       previewBtn.type = "button";
       previewBtn.className = "skill-item-action";
-      previewBtn.textContent = "查看";
-      previewBtn.title = "查看技能全文";
+      const canEdit = !skill.builtin && skill.source !== "cloud";
+      previewBtn.textContent = canEdit ? "查看 / 编辑" : "查看";
+      previewBtn.title = canEdit ? "查看目录结构，编辑 / 新建 / 删除技能文件" : "查看技能全文";
       previewBtn.addEventListener("click", () => showSkillPreview(skill));
       actions.appendChild(previewBtn);
       // 云端技能来自 OSS 缓存，removeUser 删不掉（下次 loadCloud 又拉回），不显示删除按钮，避免"假删除"。
@@ -4023,8 +3835,9 @@
         del.title = "从本地删除这条技能";
         del.addEventListener("click", () => {
           if (!confirm(i18nT("从技能库删除「{name}」？此操作不可撤销。", { name: skill.name }))) return;
-          Skills.removeUser(skill.id);
+          try { Skills.removeUser(skill.id); } catch (e) { showMessage(`删除失败：${e?.message || e}`, "error"); return; }
           renderSkillsList();
+          Skills.whenSaved?.().catch((e) => { showMessage(`删除失败：${e?.message || e}`, "error"); renderSkillsList(); });
         });
         actions.appendChild(del);
       }
@@ -4036,14 +3849,17 @@
     });
   }
 
-  // 技能全文预览：内联 overlay（window.open 在 WPS WebView 经常被拦）。
-  // 支持：
-  //   - markdown 渲染（有 WpsAiMarkdown 时）
-  //   - contentPath 形式的内置技能（UI/UX Pro Max 44KB）懒加载
-  //   - 复制全文 / 按 Esc 关闭 / 点 overlay 关闭
+  // 技能详情：内联 overlay（window.open 在 WPS WebView 经常被拦）。
+  // 左侧目录树（SKILL.md + references/ 等参考文件），右侧看 / 改选中的文件。
+  //   - 自定义技能：可编辑保存任意文件、新建文件、删除参考文件
+  //   - 内置 / 云端技能：只读（内置的 contentPath 正文懒加载）
+  //   - SKILL.md 编辑的是带 frontmatter 的全文，保存时拆回 name / description / 正文
+  const SKILL_MAIN_FILE = "SKILL.md";
   let _skillPreviewOverlay = null;
   async function showSkillPreview(skill) {
     closeSkillPreview(); // 先关上次的
+    const Skills = global.WpsAiSkills;
+    const editable = !skill.builtin && skill.source !== "cloud";
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay skill-preview-overlay";
     overlay.innerHTML = `
@@ -4054,78 +3870,298 @@
             <span class="skill-item-badge skill-preview-badge"></span>
           </h3>
           <div class="modal-header-actions">
-            <button type="button" class="ghost-btn" data-act="copy" title="复制全文到剪贴板">复制全文</button>
             <button type="button" class="modal-close" data-act="close" aria-label="关闭">×</button>
           </div>
         </div>
         <div class="modal-body skill-preview-body">
           <div class="skill-preview-desc"></div>
-          <div class="skill-preview-meta"></div>
-          <div class="skill-preview-content"></div>
-          <div class="skill-preview-loading">加载中…</div>
+          <div class="skill-detail-main">
+            <div class="skill-tree-pane">
+              <div class="skill-tree" role="tree"></div>
+              <div class="skill-tree-new hidden">
+                <input type="text" class="skill-tree-new-input" placeholder="references/新文件.md" />
+                <button type="button" class="ghost-btn" data-act="new-file-ok">确定</button>
+              </div>
+              <button type="button" class="ghost-btn skill-tree-add hidden" data-act="new-file" title="在这个技能里新建一个参考文件">+ 新建文件</button>
+            </div>
+            <div class="skill-file-pane">
+              <div class="skill-file-head">
+                <span class="skill-file-path"></span>
+                <span class="skill-preview-meta"></span>
+                <span class="skill-file-actions">
+                  <button type="button" class="ghost-btn" data-act="copy" title="复制当前文件全文到剪贴板">复制全文</button>
+                  <button type="button" class="ghost-btn" data-act="edit">编辑</button>
+                  <button type="button" class="ghost-btn danger" data-act="delete-file" title="从这个技能里删除当前文件">删除文件</button>
+                  <button type="button" class="ghost-btn" data-act="cancel">取消</button>
+                  <button type="button" class="primary-btn" data-act="save">保存</button>
+                </span>
+              </div>
+              <div class="skill-preview-content"></div>
+              <textarea class="skill-file-editor hidden" spellcheck="false"></textarea>
+              <div class="skill-preview-loading">加载中…</div>
+            </div>
+          </div>
         </div>
       </div>`;
     document.body.appendChild(overlay);
     _skillPreviewOverlay = overlay;
 
-    const nameEl = overlay.querySelector(".skill-preview-name");
-    const badgeEl = overlay.querySelector(".skill-preview-badge");
-    const descEl = overlay.querySelector(".skill-preview-desc");
-    const metaEl = overlay.querySelector(".skill-preview-meta");
-    const contentEl = overlay.querySelector(".skill-preview-content");
-    const loadingEl = overlay.querySelector(".skill-preview-loading");
+    const $q = (sel) => overlay.querySelector(sel);
+    const nameEl = $q(".skill-preview-name");
+    const badgeEl = $q(".skill-preview-badge");
+    const descEl = $q(".skill-preview-desc");
+    const treeEl = $q(".skill-tree");
+    const newRowEl = $q(".skill-tree-new");
+    const newInputEl = $q(".skill-tree-new-input");
+    const pathEl = $q(".skill-file-path");
+    const metaEl = $q(".skill-preview-meta");
+    const contentEl = $q(".skill-preview-content");
+    const editorEl = $q(".skill-file-editor");
+    const loadingEl = $q(".skill-preview-loading");
+    const actBtn = (act) => $q(`[data-act="${act}"]`);
 
-    nameEl.textContent = skill.name || "未命名技能";
+    // 详情期间的状态。cur 每次改动后从存储重读，保证树 / 标题 / 列表三处一致。
+    let cur = skill;
+    let selected = SKILL_MAIN_FILE;
+    let editing = false;
+    let draftPath = ""; // 新建但还没保存的文件路径（只存在于编辑框里）
+    let mainText = "";  // 只读技能的 SKILL.md 正文（contentPath / url 懒加载）
+    const collapsedDirs = new Set();
+
     badgeEl.textContent = skill.source === "cloud" ? "云端" : (skill.builtin ? "内置" : "自定义");
-    badgeEl.classList.toggle("user", !skill.builtin && skill.source !== "cloud");
+    badgeEl.classList.toggle("user", editable);
     badgeEl.classList.toggle("cloud", skill.source === "cloud");
-    descEl.textContent = skill.description || "（无描述）";
+    $q(".skill-tree-add").classList.toggle("hidden", !editable);
+
+    const filePaths = () => (Array.isArray(cur.files) ? cur.files.map((f) => f.path) : []);
+    const isDirty = () => editing && editorEl.value !== (editorEl.dataset.original || "");
+    const confirmDiscard = () => !isDirty() || confirm(i18nT("当前文件有未保存的修改，确定放弃？"));
+
+    function readSelected() {
+      if (selected === draftPath) return "";
+      if (selected === SKILL_MAIN_FILE) {
+        if (!editable) return mainText;
+        // 查看时只显示正文（名字 / 简介已在标题区）；编辑时给带 frontmatter 的全文，三项一起改
+        return editing ? Skills.buildSkillMarkdown(cur) : (cur.content || "");
+      }
+      return Skills.readFile(cur, selected) || "";
+    }
+
+    function renderHeader() {
+      nameEl.textContent = cur.name || "未命名技能";
+      descEl.textContent = cur.description || "（无描述）";
+    }
+
+    function renderTree() {
+      treeEl.innerHTML = "";
+      const paths = filePaths();
+      if (draftPath) paths.push(draftPath);
+      const addRow = (label, depth, opts) => {
+        const row = document.createElement("div");
+        row.className = "skill-tree-row " + (opts.dir ? "dir" : "file");
+        row.style.paddingLeft = `${8 + depth * 14}px`;
+        row.setAttribute("role", "treeitem");
+        const icon = document.createElement("span");
+        icon.className = "skill-tree-icon";
+        icon.textContent = opts.dir ? (opts.collapsed ? "▸" : "▾") : "";
+        const text = document.createElement("span");
+        text.className = "skill-tree-label";
+        text.textContent = label;
+        row.title = opts.path || label;
+        row.appendChild(icon);
+        row.appendChild(text);
+        if (opts.dir) {
+          if (opts.path) row.dataset.dir = opts.path;
+        } else {
+          row.dataset.file = opts.path;
+          if (opts.path === selected) row.classList.add("selected");
+          if (opts.path === draftPath) row.classList.add("draft");
+        }
+        treeEl.appendChild(row);
+      };
+      // 根节点 = 技能本身；SKILL.md 永远排第一
+      addRow(cur.name || "未命名技能", 0, { dir: true });
+      addRow(SKILL_MAIN_FILE, 1, { path: SKILL_MAIN_FILE });
+      const walk = (nodes, depth) => nodes.forEach((n) => {
+        if (n.type === "dir") {
+          const collapsed = collapsedDirs.has(n.path);
+          addRow(n.name, depth, { dir: true, path: n.path, collapsed });
+          if (!collapsed) walk(n.children, depth + 1);
+        } else {
+          addRow(n.name, depth, { path: n.path });
+        }
+      });
+      walk(Skills.buildFileTree(paths), 1);
+    }
+
+    function renderFile() {
+      const text = readSelected();
+      pathEl.textContent = selected;
+      const lines = text ? text.split(/\r?\n/).length : 0;
+      metaEl.textContent = editing
+        ? ""
+        : `${text.length.toLocaleString()} 字符 · ${lines.toLocaleString()} 行 · ≈${Math.ceil(text.length / 4).toLocaleString()} tokens`;
+      contentEl.classList.toggle("hidden", editing);
+      editorEl.classList.toggle("hidden", !editing);
+      actBtn("copy").classList.toggle("hidden", editing);
+      actBtn("edit").classList.toggle("hidden", editing || !editable);
+      actBtn("delete-file").classList.toggle("hidden", editing || !editable || selected === SKILL_MAIN_FILE);
+      actBtn("cancel").classList.toggle("hidden", !editing);
+      actBtn("save").classList.toggle("hidden", !editing);
+      if (editing) {
+        editorEl.value = text;
+        editorEl.dataset.original = text;
+        try { editorEl.focus(); } catch (e) {}
+        return;
+      }
+      contentEl.dataset.rawText = text;
+      contentEl.innerHTML = "";
+      contentEl.classList.remove("markdown");
+      // .md 走 markdown 渲染（标题/列表/代码块更好看）；其它文本（csv/json…）原样等宽显示
+      if (/\.(md|markdown)$/i.test(selected) && global.WpsAiMarkdown?.renderToHtml) {
+        contentEl.innerHTML = global.WpsAiMarkdown.renderToHtml(text);
+        contentEl.classList.add("markdown");
+      } else {
+        const pre = document.createElement("pre");
+        pre.textContent = text;
+        contentEl.appendChild(pre);
+      }
+    }
+
+    function reload() {
+      if (editable) cur = Skills.get(cur.id) || cur;
+      renderHeader();
+      renderTree();
+      renderFile();
+    }
+
+    function selectFile(path) {
+      if (path === selected && !editing) return;
+      if (!confirmDiscard()) return;
+      if (draftPath && path !== draftPath) draftPath = ""; // 离开没保存的新文件 = 放弃它
+      selected = path;
+      editing = path === draftPath;
+      renderTree();
+      renderFile();
+    }
+
+    function startNewFile() {
+      const raw = newInputEl.value.trim();
+      if (!raw) return;
+      if (!confirmDiscard()) return;
+      const path = raw.replace(/\\/g, "/").replace(/^\/+/, "");
+      if (filePaths().some((p) => p.toLowerCase() === path.toLowerCase()) || /^skill\.(md|markdown)$/i.test(path)) {
+        showMessage(i18nT("已有同名文件：{path}", { path }), "error");
+        return;
+      }
+      newInputEl.value = "";
+      newRowEl.classList.add("hidden");
+      draftPath = path;
+      selected = path;
+      editing = true;
+      renderTree();
+      renderFile();
+    }
+
+    // 改动先进内存缓存，再等写盘结果；写盘失败时缓存已按磁盘回滚，这里重画并报错
+    async function settle(okMsg, failPrefix) {
+      renderSkillsList();
+      try {
+        await Skills.whenSaved?.();
+        if (okMsg) showMessage(okMsg, "success");
+      } catch (e) {
+        showMessage(`${failPrefix}：${e?.message || e}`, "error");
+        if (_skillPreviewOverlay !== overlay) return;
+        const again = Skills.get(cur.id);
+        if (!again) { closeSkillPreview(); renderSkillsList(); return; }
+        if (!Skills.listFiles(again).includes(selected)) selected = SKILL_MAIN_FILE;
+        reload();
+        renderSkillsList();
+      }
+    }
+
+    function saveCurrent() {
+      try {
+        // 改名会连技能目录一起改名、id 跟着变，所以要接住返回的新条目
+        if (selected === SKILL_MAIN_FILE) cur = Skills.saveSkillMarkdown(cur.id, editorEl.value) || cur;
+        else Skills.writeFile(cur.id, selected, editorEl.value);
+      } catch (e) {
+        showMessage(`保存失败：${e?.message || e}`, "error");
+        return;
+      }
+      if (selected === draftPath) draftPath = "";
+      editing = false;
+      reload();
+      settle(i18nT("已保存 {path}", { path: selected }), "保存失败");
+    }
+
+    function deleteCurrent() {
+      if (!confirm(i18nT("从技能「{name}」里删除文件 {path}？此操作不可撤销。", { name: cur.name, path: selected }))) return;
+      try { Skills.deleteFile(cur.id, selected); } catch (e) { showMessage(`删除失败：${e?.message || e}`, "error"); return; }
+      selected = SKILL_MAIN_FILE;
+      reload();
+      settle("", "删除失败");
+    }
+
+    const requestClose = () => { if (confirmDiscard()) closeSkillPreview(); };
 
     overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) closeSkillPreview();
+      if (e.target === overlay) { requestClose(); return; }
+      const fileRow = e.target?.closest?.("[data-file]");
+      if (fileRow) { selectFile(fileRow.dataset.file); return; }
+      const dirRow = e.target?.closest?.("[data-dir]");
+      if (dirRow) {
+        const dir = dirRow.dataset.dir;
+        if (collapsedDirs.has(dir)) collapsedDirs.delete(dir); else collapsedDirs.add(dir);
+        renderTree();
+        return;
+      }
       const act = e.target?.closest?.("[data-act]")?.dataset?.act;
-      if (act === "close") closeSkillPreview();
-      if (act === "copy") {
+      if (act === "close") requestClose();
+      else if (act === "copy") {
         const text = contentEl.dataset.rawText || "";
         copyToClipboard(text).then((ok) => {
           showMessage(ok ? `已复制 ${text.length} 字符到剪贴板` : "复制失败", ok ? "success" : "error");
         });
-      }
+      } else if (act === "edit") { editing = true; renderFile(); }
+      else if (act === "cancel") {
+        if (!confirmDiscard()) return;
+        if (selected === draftPath) { draftPath = ""; selected = SKILL_MAIN_FILE; }
+        editing = false;
+        renderTree();
+        renderFile();
+      } else if (act === "save") saveCurrent();
+      else if (act === "delete-file") deleteCurrent();
+      else if (act === "new-file") {
+        newRowEl.classList.toggle("hidden");
+        if (!newRowEl.classList.contains("hidden")) { try { newInputEl.focus(); } catch (err) {} }
+      } else if (act === "new-file-ok") startNewFile();
     });
-    // Esc 关闭
-    const onKey = (ev) => { if (ev.key === "Escape") closeSkillPreview(); };
+    newInputEl.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") { ev.preventDefault(); startNewFile(); }
+    });
+    // Esc 关闭（新建文件输入框里按 Esc 只收起输入框）
+    const onKey = (ev) => {
+      if (ev.key !== "Escape") return;
+      if (ev.target === newInputEl) { newRowEl.classList.add("hidden"); return; }
+      requestClose();
+    };
     document.addEventListener("keydown", onKey);
-    overlay.dataset.keyHandler = "1";
     overlay._cleanupKey = () => document.removeEventListener("keydown", onKey);
 
-    // 加载内容（contentPath 形式异步）
-    let content = "";
-    try {
-      if (skill.content) {
-        content = skill.content;
-      } else if ((skill.contentPath || skill.url) && global.WpsAiSkills?.loadContent) {
-        content = await global.WpsAiSkills.loadContent(skill);
+    renderHeader();
+    renderTree();
+    // 只读技能的正文可能要异步取（contentPath / url）
+    if (!editable) {
+      try {
+        mainText = skill.content || (await Skills.loadContent(skill)) || "";
+      } catch (e) {
+        mainText = `（加载失败：${e?.message || e}）`;
       }
-    } catch (e) {
-      content = `（加载失败：${e?.message || e}）`;
+      if (_skillPreviewOverlay !== overlay) return; // 加载期间已被关掉
     }
     loadingEl.style.display = "none";
-
-    const chars = content.length;
-    const lines = content.split(/\r?\n/).length;
-    const tokens = Math.ceil(chars / 4); // 粗略估算
-    metaEl.textContent = `${chars.toLocaleString()} 字符 · ${lines.toLocaleString()} 行 · ≈${tokens.toLocaleString()} tokens`;
-
-    contentEl.dataset.rawText = content;
-    // 优先 markdown 渲染（标题/列表/代码块更好看）；没加载就降级 <pre>
-    if (global.WpsAiMarkdown?.renderToHtml) {
-      contentEl.innerHTML = global.WpsAiMarkdown.renderToHtml(content);
-      contentEl.classList.add("markdown");
-    } else {
-      const pre = document.createElement("pre");
-      pre.textContent = content;
-      contentEl.appendChild(pre);
-    }
+    renderFile();
   }
 
   function closeSkillPreview() {
@@ -4135,11 +4171,12 @@
     _skillPreviewOverlay = null;
   }
 
-  // 文件选择 → 解析 → 入库
+  // 文件选择 → 解析 → 入库。.zip 当技能包处理，其余按单文件技能。
   function handleSkillImport(file) {
     if (!file) return;
     const Skills = global.WpsAiSkills;
     if (!Skills) { showMessage("技能模块未加载", "error"); return; }
+    if (/\.zip$/i.test(file.name)) { importSkillZip(file); return; }
     const reader = new FileReader();
     reader.onload = () => {
       try {
@@ -4150,14 +4187,70 @@
           return;
         }
         const saved = Skills.addUser(parsed);
-        showMessage(`已导入技能「${saved.name}」`, "success");
         renderSkillsList();
+        Skills.whenSaved?.()
+          .then(() => showMessage(`已导入技能「${saved.name}」`, "success"))
+          .catch((e) => { showMessage(`导入失败：${e?.message || e}`, "error"); renderSkillsList(); });
       } catch (e) {
         showMessage(`导入失败：${e?.message || e}`, "error");
       }
     };
     reader.onerror = () => showMessage("读取文件失败", "error");
     reader.readAsText(file, "utf-8");
+  }
+
+  // 技能包（[{path, content}]）→ 入库。SKILL.md 之外的文本文件作为参考文件一并存下，AI 按需 read_skill_file。
+  async function importSkillPackage(entries, fallbackName, preSkipped) {
+    const Skills = global.WpsAiSkills;
+    if (!Skills?.buildSkillFromFiles) { showMessage("技能模块未加载", "error"); return; }
+    try {
+      const built = Skills.buildSkillFromFiles(entries, fallbackName);
+      const saved = Skills.addUser(built);
+      renderSkillsList();
+      await Skills.whenSaved?.();
+      const fileCount = (saved.files || []).length;
+      const skipped = (preSkipped || []).length + (built.skipped || []).length;
+      let msg = fileCount
+        ? i18nT("已导入技能「{name}」，含 {n} 个参考文件", { name: saved.name, n: fileCount })
+        : i18nT("已导入技能「{name}」", { name: saved.name });
+      if (skipped) msg += i18nT("（跳过 {n} 个不支持的文件）", { n: skipped });
+      showMessage(msg, "success", { duration: 5000 });
+    } catch (e) {
+      showMessage(`导入失败：${e?.message || e}`, "error");
+      renderSkillsList();
+    }
+  }
+
+  // .zip 技能包：解压放在本地代理做（各端 WebView 不一定有 DecompressionStream）
+  async function importSkillZip(file) {
+    try {
+      const base = global.WpsAiRuntime?.proxyBase?.() || "http://127.0.0.1:3890";
+      const resp = await fetch(`${base}/skill/unzip`, {
+        method: "POST",
+        headers: { "Content-Type": "application/octet-stream" },
+        body: await file.arrayBuffer()
+      });
+      const json = await resp.json().catch(() => null);
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || `解压失败（${resp.status}）`);
+      importSkillPackage(json.files, file.name.replace(/\.zip$/i, ""), json.skipped);
+    } catch (e) {
+      showMessage(`导入失败：${e?.message || e}`, "error");
+    }
+  }
+
+  // 技能文件夹：<input webkitdirectory> 给出的 FileList，路径在 webkitRelativePath 里
+  async function importSkillFolder(fileList) {
+    const picked = Array.from(fileList || []);
+    if (!picked.length) return;
+    const MAX_READ_BYTES = 1024 * 1024; // 明显不是文本参考资料的大文件不读进内存
+    const entries = [];
+    const preSkipped = [];
+    for (const f of picked) {
+      const path = f.webkitRelativePath || f.name;
+      if (f.size > MAX_READ_BYTES) { preSkipped.push({ path, reason: "文件过大" }); continue; }
+      try { entries.push({ path, content: await f.text() }); } catch (e) { preSkipped.push({ path, reason: "读取失败" }); }
+    }
+    importSkillPackage(entries, "", preSkipped);
   }
 
   // 拼成 system prompt block (async, 因为 contentPath 形式的内置 skill 要 fetch 文件)
@@ -4168,6 +4261,8 @@
     try {
       const Skills = global.WpsAiSkills;
       if (!Skills || typeof Skills.getEnabledSkills !== "function") return "";
+      // 每轮开头重读一次磁盘：设置窗口里刚改的、用户在外部编辑器里改的，都能立刻生效
+      try { await Skills.refresh?.(); } catch (e) {}
       const host = opts?.host;
       const enabled = (Skills.getEnabledSkills() || []).filter((s) => {
         if (!Array.isArray(s.hostFilter) || !s.hostFilter.length) return true;
@@ -4175,8 +4270,21 @@
       });
       const parts = ["\n--- 技能（skill）---"];
       if (enabled.length) {
-        parts.push("下面每个技能封装了针对特定场景的一套详细做法。判断当前任务命中某个技能时，先调 use_skill（name 传技能名）把它的完整指引读进来，再照着做；没命中就正常处理，不用调。");
-        parts.push(enabled.map((s) => `- ${s.name}${s.description ? "：" + s.description : ""}`).join("\n"));
+        // 使用规则参考 codex 的技能加载协议：目录（名字 + 简介）常驻，正文命中才读，参考文件按路由读。
+        parts.push([
+          "技能是针对特定场景的一套详细做法，正文不在这里，下面只列出名字和简介。",
+          "",
+          "可用技能：",
+          enabled.map((s) => `- ${s.name}${s.description ? "：" + s.description : ""}`).join("\n"),
+          "",
+          "使用规则：",
+          "- 触发：用户点名某个技能（直接说技能名，或说「用 XX 技能」），或者当前任务明显符合某个技能的简介时，本轮必须使用它；点名多个就都用。都不符合就正常处理，不要硬套。",
+          "- 先读后做：决定使用后，先调 use_skill（name 传技能名）把完整指引读进来，读完再开始操作文档；不要凭简介猜做法。",
+          "- 参考文件：use_skill 的返回里若带 files 清单，说明该技能附带参考文件。只有指引里明确指向、且当前任务用得到的文件才用 read_skill_file 读取，读就读完整；与任务无关的文件不要读，也不要顺着文件里的引用一路追下去。",
+          "- 多个技能都适用时，只选覆盖需求所需的最少几个，并先用一句话说明用了哪个技能、为什么。",
+          "- 技能不跨轮沿用：下一轮除非用户再次提到或任务仍然明显匹配，否则不要默认继续套用上一轮的技能。",
+          "- 兜底：点名的技能不在清单里、读取失败或指引不清楚时，简短说明原因，然后用你认为最合适的方式继续完成任务。"
+        ].join("\n"));
       }
       // 让 AI 知道能把当前操作沉淀成技能、并持续优化
       parts.push("当你完成了一套值得复用的操作，或用户要求「把刚才的操作总结成技能 / 记住这个做法 / 优化某技能」时，用 save_skill 把做法沉淀成技能（name 同名则更新=持续优化，description 写清适用场景，content 写清步骤要点）；以后遇到类似任务用 use_skill 复用。");
@@ -4259,10 +4367,14 @@
         card.classList.toggle("expanded");
       });
       head.querySelector('[data-role="toggle"]').addEventListener("change", (ev) => {
-        p.enabled = ev.target.checked;
-        card.classList.toggle("disabled", !p.enabled);
+        const checked = ev.target.checked;
+        // 互斥：开启此条时关闭其它；关闭则单纯关闭
+        currentSettings.chatProviders.forEach((other) => {
+          other.enabled = (other === p) ? checked : false;
+        });
         persistSettings();
-        populateModelSelector(els.modelSelect?.value);
+        renderChatProvidersList();
+        populateModelSelector();
       });
       head.querySelector('[data-role="test"]').addEventListener("click", async (ev) => {
         ev.stopPropagation();
@@ -4352,6 +4464,8 @@
         inp.addEventListener("change", () => {
           applyChatProviderCardEdits(card, p);
           persistSettings();
+          // 手填默认模型也要立刻生效（启用的这家的默认模型就是聊天用的模型）
+          if (inp.dataset.field === "defaultModel") populateModelSelector();
         });
       });
 
@@ -4363,7 +4477,7 @@
           const input = picker.parentElement?.querySelector('input[data-field="defaultModel"]');
           if (input) {
             input.value = value;
-            // 同步写回 entry + 持久化 + 刷新 header 下拉
+            // 同步写回 entry + 持久化 + 让聊天立刻用上新的默认模型
             applyChatProviderCardEdits(card, p);
             persistSettings();
             populateModelSelector(els.modelSelect?.value);
@@ -4471,7 +4585,8 @@
       id,
       type: preset.type,
       label: preset.label,
-      enabled: true,
+      // 只允许一家启用：已有启用的就先不抢，用户填好 Key 后自己勾「启用」切过来
+      enabled: !(currentSettings.chatProviders || []).some((p) => p.enabled),
       baseUrl: preset.baseUrl || "",
       apiKey: "",
       defaultModel: preset.defaultModel || "",
@@ -9725,7 +9840,7 @@
 
   // 测试某条 chatProvider 的连通性（被 card 右侧 ⚡ 图标调用，独立于 header 选中状态）
   // 流程：临时把它设为 activeChatModel → 调 listModels → 缓存 → 提示
-  // 测试完后保持选中状态（这样用户可以马上从下拉里挑这家的真实模型）
+  // 测试完后模型列表进缓存（这样用户可以马上在卡片的「默认模型」下拉里挑这家的真实模型）
   async function listChatModelsWithProxyMode(entry, useProxy) {
     const reg = global.WpsAiProviderRegistry;
     const provider = reg?.buildProvider?.(Object.assign({}, entry, { useProxy }));
@@ -14092,7 +14207,6 @@
     if (els.addImageProviderBtn) {
       els.addImageProviderBtn.addEventListener("click", addImageProvider);
     }
-    els.refreshModelsBtn.addEventListener("click", refreshModels);
 
     els.exportSettingsBtn.addEventListener("click", exportSettings);
     els.importSettingsBtn.addEventListener("click", () => els.importSettingsFile.click());
@@ -14111,24 +14225,7 @@
       const text = els.chatInput.value.trim();
       if (!text) return;
       els.chatInput.value = "";
-      // 临时模型：override 存在时把 activeChatModel 临时替换本轮用，发送后自动清 override
-      // 复原原值，避免"临时"变成"永久"。
-      const savedActive = currentSettings.activeChatModel;
-      const usingOverride = _perTurnModelOverride && global.WpsAiProviderRegistry?.encodeActiveChatModel;
-      if (usingOverride) {
-        currentSettings.activeChatModel = global.WpsAiProviderRegistry.encodeActiveChatModel(
-          _perTurnModelOverride.providerId,
-          _perTurnModelOverride.modelId
-        );
-      }
-      try {
-        await runChatTurn(text);
-      } finally {
-        if (usingOverride) {
-          currentSettings.activeChatModel = savedActive;
-          clearPerTurnModelOverride();
-        }
-      }
+      await runChatTurn(text);
     });
     installChatInputContextMenu(els.chatInput);
     // 技能沉淀提示：「总结成技能」→ 直接让 AI 用 save_skill 沉淀本轮操作；「关闭」→ 本对话不再提示
@@ -14681,111 +14778,6 @@
     });
   }
 
-  // ---- 单次对话临时模型 override ----
-  // 让用户不改默认设置的情况下，只用别的模型跑本次对话（比如常用 gpt-5-mini，
-  // 遇到复杂问题临时切 Claude Sonnet）。发送完自动清 override，回到默认模型。
-  let _perTurnModelOverride = null;
-  let _modelOverridePickerEl = null;
-
-  function updateModelOverrideBarUi() {
-    const bar = els.chatModelOverrideBar;
-    if (!bar) return;
-    if (_perTurnModelOverride) {
-      const label = _perTurnModelOverride.providerLabel
-        ? `${_perTurnModelOverride.providerLabel} · ${_perTurnModelOverride.modelId}`
-        : _perTurnModelOverride.modelId;
-      if (els.chatModelOverrideText) els.chatModelOverrideText.textContent = label;
-      bar.classList.remove("hidden");
-      if (els.chatModelOverrideBtn) els.chatModelOverrideBtn.classList.add("active");
-    } else {
-      bar.classList.add("hidden");
-      if (els.chatModelOverrideBtn) els.chatModelOverrideBtn.classList.remove("active");
-    }
-  }
-
-  function clearPerTurnModelOverride() {
-    _perTurnModelOverride = null;
-    updateModelOverrideBarUi();
-  }
-
-  function setPerTurnModelOverride(providerId, modelId, providerLabel) {
-    _perTurnModelOverride = { providerId, modelId, providerLabel };
-    updateModelOverrideBarUi();
-  }
-
-  function closeModelOverridePicker() {
-    if (_modelOverridePickerEl) {
-      _modelOverridePickerEl.remove();
-      _modelOverridePickerEl = null;
-    }
-    document.removeEventListener("click", onDocClickCloseOverridePicker, true);
-  }
-  function onDocClickCloseOverridePicker(ev) {
-    if (!_modelOverridePickerEl) return;
-    if (_modelOverridePickerEl.contains(ev.target)) return;
-    if (els.chatModelOverrideBtn?.contains(ev.target)) return;
-    closeModelOverridePicker();
-  }
-
-  function openModelOverridePicker() {
-    if (_modelOverridePickerEl) { closeModelOverridePicker(); return; }
-    const items = typeof collectMultiProviderItems === "function" ? collectMultiProviderItems() : [];
-    const popup = document.createElement("div");
-    popup.className = "chat-model-override-picker";
-    if (!items.length) {
-      popup.innerHTML = '<div class="chat-model-override-empty">尚未启用任何供应商，去设置里配置。</div>';
-    } else {
-      const cur = _perTurnModelOverride;
-      const byProvider = new Map();
-      items.forEach((it) => {
-        if (!byProvider.has(it.providerId)) byProvider.set(it.providerId, { label: it.providerLabel, models: [] });
-        byProvider.get(it.providerId).models.push(it);
-      });
-      let html = "";
-      byProvider.forEach((group, providerId) => {
-        html += `<div class="chat-model-override-group">${escapeHtmlSafe(group.label)}</div>`;
-        group.models.forEach((it) => {
-          const isSel = cur && cur.providerId === providerId && cur.modelId === it.modelId;
-          html += `<div class="chat-model-override-item${isSel ? " selected" : ""}" data-provider-id="${escapeHtmlSafe(providerId)}" data-model-id="${escapeHtmlSafe(it.modelId)}" data-provider-label="${escapeHtmlSafe(group.label)}">${escapeHtmlSafe(it.modelId)}</div>`;
-        });
-      });
-      popup.innerHTML = html;
-      popup.addEventListener("click", (ev) => {
-        const item = ev.target?.closest?.(".chat-model-override-item");
-        if (!item) return;
-        setPerTurnModelOverride(item.dataset.providerId, item.dataset.modelId, item.dataset.providerLabel);
-        closeModelOverridePicker();
-      });
-    }
-    // 定位在按钮上方（chat 输入区在面板下方）
-    const btn = els.chatModelOverrideBtn;
-    if (btn) {
-      const r = btn.getBoundingClientRect();
-      popup.style.position = "fixed";
-      popup.style.left = `${Math.max(8, r.left - 4)}px`;
-      popup.style.bottom = `${Math.max(8, window.innerHeight - r.top + 6)}px`;
-    }
-    document.body.appendChild(popup);
-    _modelOverridePickerEl = popup;
-    // 关闭：Esc + 点击外部
-    setTimeout(() => {
-      document.addEventListener("click", onDocClickCloseOverridePicker, true);
-    }, 0);
-  }
-
-  function setupModelOverrideControls() {
-    if (!els.chatModelOverrideBtn) return;
-    els.chatModelOverrideBtn.addEventListener("click", (ev) => {
-      ev.stopPropagation();
-      openModelOverridePicker();
-    });
-    els.chatModelOverrideClearBtn?.addEventListener("click", clearPerTurnModelOverride);
-    document.addEventListener("keydown", (ev) => {
-      if (ev.key === "Escape" && _modelOverridePickerEl) closeModelOverridePicker();
-    });
-    updateModelOverrideBarUi();
-  }
-
   function setupChatPanelUx() {
     if (!els.chatStream) return;
     pinChatSessionStats();
@@ -14851,6 +14843,9 @@
     // P2-1 / P2-4：任务与记忆存储同样在 store hydrate 后重灌
     try { global.WpsAiTaskStore?.reloadFromStore?.(); } catch (e) {}
     try { global.WpsAiChatMemory?.reloadFromStore?.(); } catch (e) {}
+    // 自定义技能存在磁盘目录（~/.lingxi-ai/skills），经代理异步加载；不阻塞启动，加载完重渲技能列表。
+    // 发消息时 buildSkillsPromptBlock 会等它，所以首条消息也拿得到完整技能清单。
+    try { global.WpsAiSkills?.init?.().then(() => { try { renderSkillsList(); } catch (e) {} }); } catch (e) {}
     // MCP 调用日志：设置窗口早于 store 就绪读到空，hydrate 后重灌
     try { global.WpsAiMcpBridge?.reloadCallLogFromStore?.(); } catch (e) {}
     try { _providerHealth = readProviderHealth(); } catch (e) {}
@@ -14883,7 +14878,6 @@
     // 独立弹窗里也有 textarea/input，同样会被 WPS 宿主抢 Cmd/Ctrl 编辑快捷键。
     installWpsFocusRelease();
     setupChatPanelUx();
-    setupModelOverrideControls();
     setupChatSlashCommands();
     setupSettingsSearch();
 
@@ -15254,6 +15248,11 @@
       els.skillImportFile?.addEventListener("change", (ev) => {
         const file = ev.target.files?.[0];
         if (file) handleSkillImport(file);
+        ev.target.value = "";
+      });
+      els.skillImportDirBtn?.addEventListener("click", () => els.skillImportDir?.click());
+      els.skillImportDir?.addEventListener("change", (ev) => {
+        importSkillFolder(ev.target.files);
         ev.target.value = "";
       });
       // 刷新云端技能：从 OSS 目录重新拉取

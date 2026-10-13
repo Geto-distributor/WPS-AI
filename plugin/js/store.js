@@ -9,7 +9,7 @@
     "lingxi_conversations_v1", "lingxi_current_conversation_v1",
     "lingxi_history_v1", "lingxi_history_turns_v1",
     "lingxi_material_library_v1",
-    "lingxi_skills_user_v1", "lingxi_skills_enabled_v1", "lingxi_skills_cloud_v1",
+    "lingxi_skills_user_v1", "lingxi_skills_enabled_v1", "lingxi_skills_cloud_v1", "lingxi_skills_disk_migrated_v1",
     "lingxi_html_template_cache_v1", "lingxi_html_components_v1",
     "lingxi_token_usage_v1", "lingxi_doc_report_cache_v1", "lingxi_mindmap_qa_v1",
     "lingxi_models_cache_v1", "lingxi_image_models_cache_v1", "lingxi_model_group_collapsed_v1",

@@ -36,6 +36,24 @@ process.on("unhandledRejection", (reason) => {
 // isBlockedFetchHost 供 AI 可控的 /fetch-web、/image-search 用（更严，含 IPv6 映射/ULA/尾点）。
 const { isMetadataSsrfHost, isBlockedFetchHost } = require("./ssrf-guard");
 const kvStore = require("./kv-store.js");
+const skillZip = require("./skill-zip.js");
+const skillStore = require("./skill-store.js").createSkillStore();
+// 随包技能（SKILL.md + data/*.csv）装到 ~/.lingxi-ai/skills/，CSV 才能作为参考文件被按需读取。
+// 每个代理进程只查一次；放在首次 /skills/list 时做而不是模块加载时，避免单测 require 本文件就写用户目录。
+const BUNDLED_SKILLS = [{ dir: "ui-ux-pro-max", source: path.join(__dirname, "..", "skills", "ui-ux-pro-max") }];
+let bundledSkillsChecked = false;
+function ensureBundledSkills() {
+  if (bundledSkillsChecked) return;
+  bundledSkillsChecked = true;
+  for (const b of BUNDLED_SKILLS) {
+    try {
+      const result = skillStore.installBundled(b.source, b.dir);
+      if (result !== "current") console.log(`[skills] 内置技能 ${b.dir}: ${result}`);
+    } catch (e) {
+      console.warn(`[skills] 内置技能 ${b.dir} 安装失败:`, e && e.message ? e.message : e);
+    }
+  }
+}
 const { readSystemClipboardText, writeSystemClipboardText, writeSystemClipboardImage } = require("./clipboard.js");
 const { buildRemoteImageHeaders, shouldUseChromiumFallback } = require("./remote-image-fetch");
 const { fetchImageWithChromium } = require("./chromium-fetch");
@@ -2032,6 +2050,40 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ===== 技能包解压：POST /skill/unzip（body = zip 原始字节）→ { files:[{path,content}], skipped:[...] } =====
+  // 只在内存里解压并返回文本文件，不落盘；前端据此组装多文件技能（SKILL.md + references/...）。
+  if (pathname === "/skill/unzip" && method === "POST") {
+    try {
+      const body = await readBody(req);
+      sendJson(res, 200, Object.assign({ ok: true }, skillZip.extractTextFiles(body)));
+    } catch (e) {
+      sendJson(res, 400, { ok: false, error: e && e.message ? e.message : String(e) });
+    }
+    return;
+  }
+
+  // ===== 技能磁盘存储：~/.lingxi-ai/skills/<技能目录>/（前端 WpsAiSkills 用）=====
+  if (pathname.startsWith("/skills/")) {
+    try {
+      if (pathname === "/skills/list" && method === "GET") {
+        ensureBundledSkills();
+        sendJson(res, 200, Object.assign({ ok: true }, skillStore.list()));
+        return;
+      }
+      if (method !== "POST") { sendJson(res, 405, { ok: false, error: "method not allowed" }); return; }
+      const json = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      if (pathname === "/skills/put") { skillStore.put(json.dir, json.files); sendJson(res, 200, { ok: true }); return; }
+      if (pathname === "/skills/write") { skillStore.writeFile(json.dir, json.path, json.content); sendJson(res, 200, { ok: true }); return; }
+      if (pathname === "/skills/delete-file") { sendJson(res, 200, { ok: true, removed: skillStore.deleteFile(json.dir, json.path) }); return; }
+      if (pathname === "/skills/rename") { skillStore.rename(json.from, json.to); sendJson(res, 200, { ok: true }); return; }
+      if (pathname === "/skills/delete") { sendJson(res, 200, { ok: true, removed: skillStore.remove(json.dir) }); return; }
+      sendJson(res, 404, { ok: false, error: "未知 skills 路由: " + pathname });
+    } catch (e) {
+      sendJson(res, 400, { ok: false, error: e && e.message ? e.message : String(e) });
+    }
+    return;
+  }
+
   // ===== SQLite KV 存储（前端 WpsAiStore 用；node:sqlite 不可用一律 503 → 前端降级 localStorage）=====
   if (pathname.startsWith("/kv/")) {
     if (!kvStore.available()) { sendJson(res, 503, { ok: false, error: "node:sqlite 未启用（需 --experimental-sqlite 启动代理）" }); return; }
@@ -3209,7 +3261,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
       error: {
-        message: `未知路由: ${pathname}。若刚更新过插件，请重启本地代理（重跑 npm run dev:* 或重装/重启后台服务）。常用：/forward/<encoded-base>/*, /upload-image, /save-local-image-as, /image-edit, /toapis-upload-image, /asset/js/vendor/*, /fetch-remote-image, /fetch-web, /image-search, /active-pdf-path, /load-local-file, /doc-snapshot, /doc-restore, /kv/all, /kv/batch, /kv/merge-list, /kv/merge-object, /kv/stats, /kv/clear`
+        message: `未知路由: ${pathname}。若刚更新过插件，请重启本地代理（重跑 npm run dev:* 或重装/重启后台服务）。常用：/forward/<encoded-base>/*, /upload-image, /save-local-image-as, /image-edit, /toapis-upload-image, /asset/js/vendor/*, /fetch-remote-image, /fetch-web, /image-search, /active-pdf-path, /load-local-file, /doc-snapshot, /doc-restore, /skill/unzip, /skills/list, /skills/put, /skills/write, /skills/delete-file, /skills/rename, /skills/delete, /kv/all, /kv/batch, /kv/merge-list, /kv/merge-object, /kv/stats, /kv/clear`
       }
     }));
     return;

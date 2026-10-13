@@ -122,7 +122,7 @@
     // 老字段 activeProvider / providers.* 仍然保留以兼容历史导入文件，但新版用
     // chatProviders + activeChatModel 这一对：
     //   chatProviders: 用户配置的所有聊天供应商（含 codex/anthropic/多家 openai 兼容）
-    //   activeChatModel: 当前选中的「<providerId>::<modelId>」组合，header 下拉直接读它
+    //   activeChatModel: 当前选中的「<providerId>::<modelId>」组合（固定跟随唯一启用的那家的默认模型）
     activeProvider: "codex",
     chatProviders: DEFAULT_CHAT_PROVIDERS.map((p) => Object.assign({}, p)),
     activeChatModel: "",
@@ -958,6 +958,18 @@
         merged.chatProviders = list;
       }
       merged.activeChatModel = typeof parsed.activeChatModel === "string" ? parsed.activeChatModel : "";
+      // 兜底互斥：聊天供应商任何时刻只允许一条 enabled=true（面板上没有模型下拉，固定用启用的这家）。
+      // 存量数据里多家同时启用时：保留 activeChatModel 指向的那家，否则保留排在最前的那家。
+      if (Array.isArray(merged.chatProviders)) {
+        const enabled = merged.chatProviders.filter((p) => p && p.enabled);
+        if (enabled.length > 1) {
+          const { providerId } = parseActiveChatModel(merged.activeChatModel);
+          const keep = enabled.find((p) => p.id === providerId) || enabled[0];
+          merged.chatProviders = merged.chatProviders.map((p) => (
+            p && p.enabled && p !== keep ? Object.assign({}, p, { enabled: false }) : p
+          ));
+        }
+      }
 
       return merged;
     } catch (error) {

@@ -83,7 +83,7 @@ test("ribbon 所有 getLabel 绑定的中文 label 在词典里都有英文翻�
   const re = /bindLabel\("[^"]+",\s*"((?:[^"\\]|\\.)*)"\)/g;
   let m;
   while ((m = re.exec(gen))) labels.push(JSON.parse('"' + m[1] + '"'));
-  assert.ok(labels.length >= 20, `应至少绑定 20 个 label（实际 ${labels.length}）`);
+  assert.ok(labels.length >= 3, `应至少绑定 tab / group / 打开按钮 3 个 label（实际 ${labels.length}）`);
   const missing = labels.filter((l) => !(l in i18n._dict));
   assert.deepEqual(missing, [], `这些 ribbon label 缺英文翻译：${missing.join("、")}`);
 });

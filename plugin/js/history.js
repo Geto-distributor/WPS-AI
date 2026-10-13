@@ -387,6 +387,7 @@
     // 通用
     generate_image: "生成图片",
     use_skill: "调用技能",
+    read_skill_file: "读取技能参考文件",
     save_skill: "保存 / 优化技能"
   };
 

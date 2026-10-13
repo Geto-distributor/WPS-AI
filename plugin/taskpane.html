@@ -80,27 +80,9 @@
           </div>
         </div>
         <div class="header-controls">
-          <!-- 模型选择：底下保留隐藏 <select> 作为数据源（既兼容老 JS 又能让 form 控件读 value），
-               上面盖一层自定义按钮 + 浮层，能在每条模型旁边画能力图标。 -->
-          <div class="model-select-wrap">
-            <select id="modelSelect" class="header-model-hidden" title="模型" aria-hidden="true"></select>
-            <button id="modelSelectBtn" class="model-select-btn" type="button" title="点击选择模型">
-              <span id="modelSelectLabel" class="model-select-label">—</span>
-              <span id="modelSelectCaps" class="model-select-caps"></span>
-              <svg class="model-select-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </button>
-            <div id="modelSelectPopup" class="model-select-popup hidden" role="listbox"></div>
-          </div>
-          <button id="refreshModelsBtn" class="icon-btn" type="button" title="刷新模型列表" aria-label="刷新模型列表">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <polyline points="23 4 23 10 17 10"/>
-              <polyline points="1 20 1 14 7 14"/>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/>
-              <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/>
-            </svg>
-          </button>
+          <!-- 聊天模型不在面板上选：固定用「设置 → 聊天模型」里唯一启用的那家供应商的默认模型。
+               隐藏 <select> 只作数据源保留（大量 JS 读它的 .value）。 -->
+          <select id="modelSelect" class="header-model-hidden" title="模型" aria-hidden="true"></select>
           <span id="canaryHeaderBadge" class="badge badge-warning canary-header-badge hidden" title="你正在使用灰度版本，遇到问题可去「设置 → 程序信息」查看 / 回退">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.3l-4.8 2.6.9-5.4L4.2 7.7l5.4-.8L12 2z"/></svg>
             <span>灰度</span>
@@ -270,7 +252,7 @@
               <section class="settings-panel active" data-settings-panel="chat">
                 <div class="panel-header">
                   <h3>聊天模型供应商</h3>
-                  <p class="muted">可以同时配置多家。当前活动的模型在顶部下拉里切换，列表里只填 API Key 即可启用。</p>
+                  <p class="muted">可以配置多家供应商，但同一时间只能启用一家。聊天固定使用已启用那家的默认模型，勾选另一家即切换。</p>
                 </div>
                 <div id="localModelGuideSlot" class="local-model-guide-slot"></div>
                 <div id="chatProvidersList" class="chat-providers-list"></div>
@@ -411,12 +393,14 @@
               <section class="settings-panel hidden" data-settings-panel="skills">
                 <div class="panel-header">
                   <h3>技能 (Skills)</h3>
-                  <p class="muted">勾选启用的技能会自动追加到 AI 的系统提示，针对特定场景给 AI 更精准的指令。支持导入 .md / .txt 自定义技能。</p>
+                  <p class="muted">勾选启用的技能会自动追加到 AI 的系统提示，针对特定场景给 AI 更精准的指令。支持导入单个 .md / .txt，或带 references/ 等参考文件的技能包（文件夹 / .zip，需含 SKILL.md）。</p>
                 </div>
                 <div class="settings-actions">
-                  <button id="skillImportBtn" class="ghost-btn" type="button" title="从 .md / .txt 文件导入自定义技能">导入技能 (.md/.txt)</button>
+                  <button id="skillImportBtn" class="ghost-btn" type="button" title="导入单个 .md / .txt 技能，或 .zip 技能包">导入技能 (.md/.zip)</button>
+                  <button id="skillImportDirBtn" class="ghost-btn" type="button" title="选择一个含 SKILL.md 的技能文件夹，references/ 等参考文件会一并导入">导入技能文件夹</button>
                   <button id="skillCloudRefreshBtn" class="ghost-btn" type="button" title="从云端（OSS）目录拉取最新技能">刷新云端技能</button>
-                  <input id="skillImportFile" type="file" accept=".md,.txt,.markdown,text/markdown,text/plain" hidden />
+                  <input id="skillImportFile" type="file" accept=".md,.txt,.markdown,.zip,text/markdown,text/plain,application/zip" hidden />
+                  <input id="skillImportDir" type="file" webkitdirectory multiple hidden />
                 </div>
                 <div class="skills-filter">
                   <div class="skills-search-wrap">
@@ -884,15 +868,6 @@
           </button>
         </div>
 
-        <!-- 单次模型 override：点了才出现，本次发送用指定模型，发送完自动清空 -->
-        <div id="chatModelOverrideBar" class="chat-model-override-bar hidden">
-          <span class="chat-model-override-label">本次用：</span>
-          <span id="chatModelOverrideText" class="chat-model-override-text">—</span>
-          <button id="chatModelOverrideClearBtn" class="chat-model-override-clear" type="button" title="取消临时模型" aria-label="取消临时模型">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-
         <!-- 修订模式（仅 WPS 文字）：开后 AI 改动记为 Word 原生修订，可逐条接受 / 全部回撤 -->
         <div id="reviseModeBar" class="revise-mode-bar hidden">
           <label class="revise-toggle" title="开启后 AI 对文档的改动会记为 Word 原生修订（可逐条接受 / 拒绝），作者标为「灵犀AI」，方便像审稿一样审 AI 的改动">
@@ -946,14 +921,6 @@
                 <line x1="8" y1="13" x2="16" y2="13"/>
                 <line x1="8" y1="17" x2="16" y2="17"/>
                 <line x1="8" y1="9" x2="11" y2="9"/>
-              </svg>
-            </button>
-            <button id="chatModelOverrideBtn" class="chat-toolbar-btn" type="button" title="临时切换本次对话的模型（不改默认设置）" aria-label="临时切换模型">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="17 1 21 5 17 9"/>
-                <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-                <polyline points="7 23 3 19 7 15"/>
-                <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
               </svg>
             </button>
             <!-- 当前模型的能力 chip 跟附件按钮放一起，让用户在打字前就看到"图像/PDF/思考"是否可用。

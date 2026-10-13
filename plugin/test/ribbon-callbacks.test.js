@@ -456,19 +456,15 @@ test("仓库默认 ribbon 保持 WPS 文字按钮，避免 mac Word 加载到 PD
   const ribbonXml = fs.readFileSync(path.join(__dirname, "../ribbon.xml"), "utf8");
   assert.equal(pkg.addonType, "wps");
   assert.equal(manifest.addonType, "wps");
-  assert.match(ribbonXml, /id="quick\.wps\.helpWrite"/);
-  assert.match(ribbonXml, /id="quick\.wps\.polish"/);
-  assert.match(ribbonXml, /id="quick\.wps\.translate"/);
-  assert.doesNotMatch(ribbonXml, /id="quick\.pdf\./);
-  assert.match(wpsRibbonXml, /id="quick\.wps\.helpWrite"[^>]*image="images\/icons\/writing\.png"/);
+  assert.match(ribbonXml, /id="openWpsAiPane"/);
+  assert.equal((ribbonXml.match(/<button /g) || []).length, 1, "ribbon 只保留「打开灵犀AI」一个按钮");
+  assert.doesNotMatch(ribbonXml, /id="quick\./);
+  assert.doesNotMatch(wpsRibbonXml, /id="quick\./);
 });
 
 test("PDF ribbon 按钮带静态 PNG image，兼容不拉取 getImage 路径的 PDF 宿主", () => {
   assert.match(pdfRibbonXml, /id="openWpsAiPane"[^>]*image="images\/ai\.png"/);
-  assert.match(pdfRibbonXml, /id="quick\.pdf\.parallelTranslate"[^>]*image="images\/icons\/translate\.png"/);
-  assert.match(pdfRibbonXml, /id="quick\.pdf\.summary"[^>]*image="images\/icons\/document\.png"/);
-  assert.match(pdfRibbonXml, /id="quick\.pdf\.qa"[^>]*image="images\/icons\/document\.png"/);
-  assert.match(pdfRibbonXml, /id="quick\.pdf\.suggest"[^>]*image="images\/icons\/wand\.png"/);
+  assert.equal((pdfRibbonXml.match(/<button /g) || []).length, 1, "PDF ribbon 同样只保留「打开灵犀AI」");
   assert.match(genRibbonJs, /function buttonAttrs/, "静态 image 属性应由生成器统一输出");
 });
 

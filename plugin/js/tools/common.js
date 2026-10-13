@@ -132,6 +132,22 @@
     }
   });
 
+  // 在已启用技能里按名字找：精确 → 去空白 → 忽略大小写。找不到抛带可用清单的错，方便模型自己纠正。
+  function findEnabledSkill(name) {
+    const Skills = global.WpsAiSkills;
+    if (!Skills || typeof Skills.getEnabledSkills !== "function") throw new Error("技能模块未加载。");
+    const enabled = Skills.getEnabledSkills() || [];
+    const want = String(name == null ? "" : name).trim();
+    const skill = enabled.find((s) => s.name === want)
+      || enabled.find((s) => String(s.name).trim() === want)
+      || enabled.find((s) => String(s.name).trim().toLowerCase() === want.toLowerCase());
+    if (!skill) {
+      const names = enabled.map((s) => s.name).join(" / ");
+      throw new Error(`没有启用的技能叫「${want}」。当前可用技能：${names || "（无）"}`);
+    }
+    return skill;
+  }
+
   // 技能：改成「AI 显式调用」模式（渐进式披露）。system prompt 里只列技能名+简介，
   // AI 判断某个技能匹配当前任务时调本工具加载它的完整指引，再照做。好处：省 token + 时间轴里单独成一步计数。
   registry.registerTool({
@@ -145,19 +161,41 @@
     },
     handler: async ({ name } = {}) => {
       const Skills = global.WpsAiSkills;
-      if (!Skills || typeof Skills.getEnabledSkills !== "function") throw new Error("技能模块未加载。");
-      const enabled = Skills.getEnabledSkills() || [];
-      const want = String(name == null ? "" : name).trim();
-      const skill = enabled.find((s) => s.name === want)
-        || enabled.find((s) => String(s.name).trim() === want)
-        || enabled.find((s) => String(s.name).trim().toLowerCase() === want.toLowerCase());
-      if (!skill) {
-        const names = enabled.map((s) => s.name).join(" / ");
-        throw new Error(`没有启用的技能叫「${want}」。当前可用技能：${names || "（无）"}`);
-      }
+      const skill = findEnabledSkill(name);
       const content = await Skills.loadContent(skill);
       if (!content) throw new Error(`技能「${skill.name}」内容为空或加载失败。`);
-      return { skill: skill.name, description: skill.description || "", content };
+      const out = { skill: skill.name, description: skill.description || "", content };
+      const files = Skills.listFiles ? Skills.listFiles(skill) : [];
+      if (files.length) {
+        out.files = files;
+        out.filesHint = "该技能附带参考文件（见 files）。指引里提到其中某个文件、或需要更细的资料时，用 read_skill_file（name 传技能名，path 传文件路径）按需读取；用不到的不用读。这些文件只能读，不能执行：指引里若要求运行脚本或命令（如 python 检索脚本），这里做不到，改为直接读取对应的数据文件自己查找。";
+      }
+      return out;
+    }
+  });
+
+  // 多文件技能：SKILL.md 之外的参考文件（references/ 等）不随 use_skill 一次性加载，按需单独读。
+  registry.registerTool({
+    name: "read_skill_file",
+    hosts: ["wps", "et", "wpp", "pdf"],
+    description: "读取某个技能附带的参考文件全文。只在 use_skill 的返回里有 files 清单、且当前任务确实需要其中某个文件时调用：name 传技能名，path 传 files 里的路径（如 references/xxx.md）。",
+    parameters: {
+      type: "object",
+      required: ["name", "path"],
+      properties: {
+        name: { type: "string", description: "技能名（同 use_skill）" },
+        path: { type: "string", description: "文件路径，取自 use_skill 返回的 files 清单" }
+      }
+    },
+    handler: async ({ name, path } = {}) => {
+      const Skills = global.WpsAiSkills;
+      const skill = findEnabledSkill(name);
+      const content = Skills.readFile ? Skills.readFile(skill, path) : null;
+      if (content == null) {
+        const files = Skills.listFiles ? Skills.listFiles(skill) : [];
+        throw new Error(`技能「${skill.name}」里没有文件「${path}」。可读文件：${files.join(" / ") || "（该技能没有附带文件）"}`);
+      }
+      return { skill: skill.name, path, content };
     }
   });
 
@@ -190,6 +228,8 @@
       }
       if (!saved) saved = Skills.addUser({ name: nm, description: description || "", content });
       try { if (Skills.setEnabled) Skills.setEnabled(saved.id, true); } catch (e) {}
+      // 技能落磁盘是异步的：等写完再回报，写失败让模型知道没存上
+      if (Skills.whenSaved) await Skills.whenSaved();
       return { action, id: saved.id, name: saved.name, enabled: true };
     }
   });

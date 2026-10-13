@@ -8494,6 +8494,110 @@ body.pure-mode .image-gen-panel.hidden { display: none; }
   padding: 4px 8px;
 }
 .skill-preview-content.markdown th { background: #eef1f5; }
+/* 技能详情：左目录树 + 右文件查看/编辑 */
+.skill-detail-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+}
+.skill-tree-pane {
+  flex: none;
+  width: 200px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.skill-tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 0;
+  background: #f7f8fb;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.skill-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  white-space: nowrap;
+  color: var(--text);
+  cursor: default;
+}
+.skill-tree-row.dir { color: var(--text-secondary); font-weight: 600; }
+.skill-tree-row[data-dir], .skill-tree-row.file { cursor: pointer; }
+.skill-tree-row[data-dir]:hover, .skill-tree-row.file:hover { background: var(--divider); }
+.skill-tree-row.selected { background: var(--primary-soft); color: var(--primary); }
+.skill-tree-row.draft .skill-tree-label { font-style: italic; }
+.skill-tree-icon { flex: none; width: 10px; font-size: 10px; color: var(--muted); }
+.skill-tree-label { overflow: hidden; text-overflow: ellipsis; }
+.skill-tree-new { display: flex; gap: 4px; }
+.skill-tree-new.hidden, .skill-tree-add.hidden { display: none; }
+.skill-tree-new-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.skill-tree-pane .ghost-btn { font-size: 11px; padding: 4px 8px; }
+.skill-file-pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.skill-file-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.skill-file-path {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  word-break: break-all;
+}
+.skill-file-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+/* .primary-btn 全局带 margin-top:10px + 阴影，和并排的 ghost-btn 对不齐，这里抹平 */
+.skill-file-actions .ghost-btn, .skill-file-actions .primary-btn {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 4px 10px;
+  box-shadow: none;
+}
+.skill-file-actions .hidden, .skill-preview-content.hidden, .skill-file-editor.hidden { display: none; }
+.skill-file-actions .ghost-btn.danger:hover { background: #fee; color: #c4302b; }
+.skill-file-editor {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  padding: 12px 14px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text);
+  background: #fff;
+  outline: none;
+}
+/* 面板窄（TaskPane 内嵌设置）时上下排：目录树在上、文件在下 */
+@media (max-width: 560px) {
+  .skill-detail-main { flex-direction: column; }
+  .skill-tree-pane { width: auto; max-height: 30%; }
+}
 .skill-preview-loading {
   flex: none;
   font-size: 12px;
