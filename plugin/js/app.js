@@ -3697,7 +3697,6 @@
     { key: "wpp",    label: "PPT" },
     { key: "pdf",    label: "PDF" },
     { key: "common", label: "通用" },
-    { key: "cloud",  label: "云端" },
     { key: "user",   label: "自定义" }
   ];
   let _skillFilter = { category: "all", query: "" };

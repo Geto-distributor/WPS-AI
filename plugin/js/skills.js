@@ -18,9 +18,8 @@
 
   const USER_KEY = "lingxi_skills_user_v1";
   const ENABLED_KEY = "lingxi_skills_enabled_v1";
-  const CLOUD_KEY = "lingxi_skills_cloud_v1"; // 缓存从 OSS 拉到的云端技能元数据（离线也能列出）
-  // 云端技能目录索引（OSS）：{ skills: [{ id, name, description, url|content|contentPath, hostFilter? }] }
-  const DEFAULT_CLOUD_SKILLS_URL = "https://llteac-file.oss-cn-hangzhou.aliyuncs.com/wps-ai/skills/index.json";
+  // 云端技能（从作者 OSS 拉目录）已整体移除。老版本拉过的目录还缓存在这个键里，启动时清掉（见 dropCloudLeftovers）。
+  const LEGACY_CLOUD_KEY = "lingxi_skills_cloud_v1";
 
   // 经本地 proxy 的 /forward/ 转发拉 OSS（避开 WebView 跨域）。返回原始响应体。
   function proxyForward(url) {
@@ -29,7 +28,7 @@
   }
 
   // 内置技能：目前一条都不带（原来的 PPT 设计师 / Word 润色 / Excel 数据助手 / PDF 阅读 / UI-UX Pro Max 已移除）。
-  // 列表、启用状态等逻辑仍按「内置 → 云端 → 自定义」处理，以后要加回内置技能往这个数组里放即可。
+  // 列表、启用状态等逻辑仍按「内置 → 自定义」处理，以后要加回内置技能往这个数组里放即可。
   const BUILTIN = [];
 
   // 懒加载缓存：内容来源(url/contentPath) → 已 fetch 的 content
@@ -50,77 +49,6 @@
     } catch (e) {
       console.warn(`[skills] 加载 ${src} 失败:`, e?.message || e);
       return "";
-    }
-  }
-
-  // ===== 云端技能（从 OSS 目录加载）=====
-  // 把一条云端技能原始条目规整成内部 skill 形态；无有效内容来源则返回 null。
-  function normalizeCloudSkill(raw) {
-    if (!raw) return null;
-    const rid = String(raw.id || raw.name || "").trim();
-    if (!rid) return null;
-    const id = rid.indexOf("cloud-") === 0 ? rid : "cloud-" + rid;
-    const out = {
-      id,
-      name: String(raw.name || rid).trim(),
-      description: String(raw.description || "").trim(),
-      builtin: false,
-      source: "cloud"
-    };
-    if (typeof raw.content === "string" && raw.content.trim()) out.content = raw.content.trim();
-    else if (raw.url) out.url = String(raw.url).trim();
-    else if (raw.contentPath) out.contentPath = String(raw.contentPath).trim();
-    else return null;
-    if (Array.isArray(raw.hostFilter) && raw.hostFilter.length) out.hostFilter = raw.hostFilter.map(String);
-    return out;
-  }
-
-  // 解析云端索引：接受 { skills: [...] } 或直接数组。纯函数。
-  function parseCloudIndex(data) {
-    const arr = Array.isArray(data) ? data : (Array.isArray(data?.skills) ? data.skills : []);
-    const seen = new Set();
-    const out = [];
-    arr.map(normalizeCloudSkill).forEach((s) => {
-      if (!s || seen.has(s.id)) return;
-      seen.add(s.id);
-      out.push(s);
-    });
-    return out;
-  }
-
-  function readCloudSkills() {
-    try {
-      const raw = global.WpsAiStore.getItem(CLOUD_KEY);
-      if (!raw) return [];
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed?.entries) ? parsed.entries : [];
-    } catch (e) { return []; }
-  }
-
-  function writeCloudSkills(entries) {
-    try { global.WpsAiStore.setItem(CLOUD_KEY, JSON.stringify({ entries, savedAt: Date.now() })); } catch (e) {}
-  }
-
-  // 从 OSS 拉云端技能目录，刷新本地缓存。失败回退到缓存（离线可用）。best-effort。
-  async function loadCloud(opts) {
-    const url = (opts && opts.url)
-      || global.WpsAiProviderRegistry?.loadSettings?.().cloudSkillsUrl
-      || DEFAULT_CLOUD_SKILLS_URL;
-    try {
-      const resp = await fetch(proxyForward(url), { cache: "no-cache" });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      const skills = parseCloudIndex(data);
-      writeCloudSkills(skills);
-      // 刷新时清掉云端（绝对 URL）的内容缓存，让下次注入拿最新正文，
-      // 避免 OSS 同 URL 更新内容后本会话仍用旧缓存。内置的相对 contentPath 缓存不动。
-      for (const k of Array.from(_contentCache.keys())) {
-        if (/^https?:/i.test(k)) _contentCache.delete(k);
-      }
-      return skills;
-    } catch (e) {
-      console.warn("[skills] 云端技能加载失败，用缓存兜底:", e?.message || e);
-      return readCloudSkills();
     }
   }
 
@@ -309,7 +237,18 @@
     if (!_initPromise) _initPromise = doInit();
     return _initPromise;
   }
+  // 清掉老版本留下的云端技能缓存，以及启用列表里指向它们的 id，免得升级后列表里还挂着拉不到正文的「云端」技能
+  function dropCloudLeftovers() {
+    try {
+      if (global.WpsAiStore.getItem(LEGACY_CLOUD_KEY) != null) global.WpsAiStore.removeItem(LEGACY_CLOUD_KEY);
+      const enabled = readEnabledIds();
+      const stale = Array.from(enabled).filter((id) => String(id).indexOf("cloud-") === 0);
+      if (stale.length) { stale.forEach((id) => enabled.delete(id)); writeEnabledIds(enabled); }
+    } catch (e) {}
+  }
+
   async function doInit() {
+    dropCloudLeftovers();
     try {
       await loadFromDisk();
     } catch (e) {
@@ -347,9 +286,9 @@
     } catch (e) {}
   }
 
-  // 列出全部（内置 → 云端 → 用户自定义）
+  // 列出全部（内置 → 用户自定义）
   function list() {
-    return BUILTIN.concat(readCloudSkills()).concat(readUserSkills());
+    return BUILTIN.concat(readUserSkills());
   }
 
   function get(id) {
@@ -677,9 +616,6 @@
     buildSkillMarkdown,
     saveSkillMarkdown,
     loadContent,
-    loadCloud,
-    parseCloudIndex,
-    readCloudSkills,
     _builtinIds: BUILTIN.map((b) => b.id)
   };
 })(window);

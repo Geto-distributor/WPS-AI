@@ -188,7 +188,7 @@ test("迁移：KV 里的老技能首次启动搬到磁盘，启用状态换新 i
       { id: "sk-old1", name: "老技能", description: "d", content: "老正文", builtin: false, files: [{ path: "references/a.md", content: "A" }] },
       { id: "sk-old2", name: "没启用的", content: "x", builtin: false }
     ],
-    enabled: ["cloud-keep", "sk-old1"]
+    enabled: ["other-keep", "sk-old1"]
   };
   const first = loadSkills(root, { legacy });
   assert.strictEqual(first.S.list().filter((s) => !s.builtin).length, 2, "init 之前仍从 KV 读");
@@ -197,7 +197,7 @@ test("迁移：KV 里的老技能首次启动搬到磁盘，启用状态换新 i
   assert.ok(exists(root, "没启用的", "SKILL.md"));
   assert.strictEqual(first.S.isEnabled("user:老技能"), true);
   assert.strictEqual(first.S.isEnabled("user:没启用的"), false);
-  assert.strictEqual(first.S.isEnabled("cloud-keep"), true, "别的启用项不受迁移影响");
+  assert.strictEqual(first.S.isEnabled("other-keep"), true, "别的启用项不受迁移影响");
   assert.ok(first.kv.getItem("lingxi_skills_disk_migrated_v1"));
   assert.ok(first.kv.getItem("lingxi_skills_user_v1"), "KV 里的原数据留作备份");
 
@@ -276,4 +276,18 @@ test("重读磁盘在途时本地又改了：过期的读取结果不会把刚�
   S.writeFile("user:新名", "references/a.md", "A"); // 后续操作还能接着做
   await S.whenSaved();
   assert.strictEqual(read(root, "新名", "references", "a.md"), "A");
+});
+
+test("老版本缓存的云端技能：不再出现在列表里，启动时连缓存和对应的启用项一起清掉", async () => {
+  const root = tmpRoot();
+  const { S, kv } = loadSkills(root);
+  kv.setItem("lingxi_skills_cloud_v1", JSON.stringify({ entries: [{ id: "cloud-html-ppt", name: "HTML PPT 生成专家", source: "cloud", url: "https://x/a.md" }] }));
+  kv.setItem("lingxi_skills_enabled_v1", JSON.stringify({ ids: ["cloud-html-ppt", "user:留着的"] }));
+  assert.deepStrictEqual(S.list(), [], "init 之前也不会列出缓存里的云端技能");
+  await S.init();
+  assert.deepStrictEqual(S.list(), []);
+  assert.strictEqual(kv.getItem("lingxi_skills_cloud_v1"), null);
+  assert.strictEqual(S.isEnabled("cloud-html-ppt"), false);
+  assert.strictEqual(S.isEnabled("user:留着的"), true);
+  assert.strictEqual(S.loadCloud, undefined, "拉取云端技能的接口已不存在");
 });

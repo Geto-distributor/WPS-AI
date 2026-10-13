@@ -197,7 +197,7 @@ test("writeFile / deleteFile：新建、覆盖、删除参考文件，非法路�
   assert.throws(() => S.writeFile(saved.id, "../x.md", "x"), /路径无效/);
   assert.throws(() => S.writeFile(saved.id, "logo.png", "x"), /只支持文本文件/);
   assert.throws(() => S.writeFile(saved.id, "references/empty.md", "  "), /不能为空/);
-  assert.throws(() => S.writeFile("cloud-something", "references/x.md", "x"), /只能编辑自定义技能/);
+  assert.throws(() => S.writeFile("not-a-user-skill", "references/x.md", "x"), /只能编辑自定义技能/);
 
   assert.strictEqual(S.deleteFile(saved.id, "references/nope.md"), false);
   assert.strictEqual(S.deleteFile(saved.id, "references/new.md"), true);
