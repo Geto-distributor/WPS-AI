@@ -359,7 +359,7 @@
       // 新版设置弹窗
       "settingsModal", "settingsModalCloseBtn", "openSettingsModalBtn",
       "localModelGuideSlot", "chatProvidersList", "addChatProviderBtn",
-      "skillsList", "skillImportBtn", "skillCloudRefreshBtn", "skillImportFile", "skillImportDirBtn", "skillImportDir",
+      "skillsList", "skillImportBtn", "skillImportFile", "skillImportDir",
       "skillsSearchInput", "skillsCategoryChips",
       "mcpServerEnabledInput", "mcpStatusBadge", "mcpToolCount", "mcpLastError",
       "mcpConfigSnippet", "mcpCopyConfigBtn", "mcpToolsList",
@@ -3166,6 +3166,8 @@
   }
 
   function switchSettingsPanel(name) {
+    // 生图模型 / 服务状态 / 程序信息 / Bug 反馈已下线；老的深链（或记住的上次面板）指过来时落回聊天模型
+    if (!document.querySelector(`.settings-sidebar-btn[data-settings-panel="${CSS.escape(String(name || ""))}"]`)) name = "chat";
     document.querySelectorAll(".settings-sidebar-btn").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.settingsPanel === name);
     });
@@ -3176,10 +3178,6 @@
     if (name === "skills") {
       renderSkillsList();
       global.WpsAiSkills?.refresh?.().then(() => renderSkillsList()).catch(() => {});
-      // 后台刷新云端技能（best-effort），拉到后重渲；失败用缓存，不打扰用户
-      global.WpsAiSkills?.loadCloud?.().then((skills) => {
-        if (skills && skills.length) renderSkillsList();
-      }).catch(() => {});
     }
     if (name === "mcp") renderMcpPanel();
     // 切到「程序信息」时刷缓存面板（每次进都重扫，占用是动态的）
@@ -4169,6 +4167,47 @@
     try { _skillPreviewOverlay._cleanupKey?.(); } catch (e) {}
     try { _skillPreviewOverlay.remove(); } catch (e) {}
     _skillPreviewOverlay = null;
+  }
+
+  // 「导入技能」按钮的下拉菜单。文件选择框没法同时选文件和文件夹（webkitdirectory 是二选一），
+  // 所以一个按钮下面分两项，各自触发对应的隐藏 <input type="file">。
+  let _skillImportMenu = null;
+  function closeSkillImportMenu() {
+    if (!_skillImportMenu) return;
+    _skillImportMenu.remove();
+    _skillImportMenu = null;
+    document.removeEventListener("click", closeSkillImportMenu);
+    document.removeEventListener("keydown", onSkillImportMenuKey);
+  }
+  function onSkillImportMenuKey(ev) { if (ev.key === "Escape") closeSkillImportMenu(); }
+  function toggleSkillImportMenu(anchor) {
+    if (_skillImportMenu) { closeSkillImportMenu(); return; }
+    const menu = document.createElement("div");
+    menu.className = "skill-import-menu";
+    menu.setAttribute("role", "menu");
+    menu.innerHTML = `
+      <button type="button" class="skill-import-menu-item" role="menuitem" data-source="file">
+        <span>${escapeHtml(i18nT("选择文件"))}</span><small>${escapeHtml(i18nT(".zip 技能包，或单个 .md / .txt"))}</small>
+      </button>
+      <button type="button" class="skill-import-menu-item" role="menuitem" data-source="dir">
+        <span>${escapeHtml(i18nT("选择文件夹"))}</span><small>${escapeHtml(i18nT("含 SKILL.md 的技能文件夹"))}</small>
+      </button>`;
+    const rect = anchor.getBoundingClientRect();
+    // 按钮在行尾，菜单按右边缘对齐、向左展开，不会伸出窗口
+    menu.style.right = `${Math.max(4, window.innerWidth - rect.right)}px`;
+    menu.style.top = `${rect.bottom + 4}px`;
+    menu.addEventListener("click", (e) => {
+      const source = e.target?.closest?.("[data-source]")?.dataset?.source;
+      if (!source) return;
+      closeSkillImportMenu();
+      (source === "dir" ? els.skillImportDir : els.skillImportFile)?.click();
+    });
+    document.body.appendChild(menu);
+    _skillImportMenu = menu;
+    setTimeout(() => {
+      document.addEventListener("click", closeSkillImportMenu);
+      document.addEventListener("keydown", onSkillImportMenuKey);
+    }, 0);
   }
 
   // 文件选择 → 解析 → 入库。.zip 当技能包处理，其余按单文件技能。
@@ -9260,22 +9299,16 @@
         }
       } catch (e) { /* 没开就算了 */ }
 
-      // 启用的技能拼 system prompt block —— async（contentPath 形式的 builtin 要 fetch md）
+      // 启用的技能拼 system prompt block —— async（要先等技能从磁盘加载完）
       const skillsBlock = await buildSkillsPromptBlock({ host: currentHostInfo.host });
       // PPT 设计自由度提示：用户在本轮 prompt 指定了风格时，告诉 AI 大胆按指定风格走，
       // 不要绑死 freeform 默认 padding / 字号映射等套路。
-      // 注意：是否提及 UI/UX Pro Max 技能要看它真的是否启用，不能硬编码"已启用"误导 AI
-      // 按那套大型设计指令走。skill 没启用时只给通用自由度提示。
-      const uiuxSkillEnabled = !!global.WpsAiSkills?.isEnabled?.("builtin-ui-ux-pro-max");
       const pptFreeDesignNote = userSpecifiedPptStyle ? [
         "",
         "【PPT 设计自由度模式】",
         "用户本轮明确指定了视觉风格 —— 你应当**完全按用户提到的风格 / 颜色 / 调性**去设计幻灯片，跳出现有模板的死板布局：",
         "- freeform 布局优先（用 wpp_render_html_template 的 layout=freeform，自己写 html+css）",
         "- 配色、字体、装饰元素都按用户风格挑，**不要绑死本地 stylePreset 色板**",
-        uiuxSkillEnabled
-          ? "- 参考已启用的「UI/UX Pro Max 设计智能」技能：50+ 风格、161 色板、字体配对、99 UX 准则随手用"
-          : "",
         "- 鼓励变化：封面、章节页、内容页**视觉差异要明显**，不要全部用同一个模板套",
         "- 字号映射仍按 1pt=2px (1920×1080 画布) 保持可读性",
         ""
@@ -10691,7 +10724,7 @@
       showMessage(`大纲已按评审建议补全（${review.suggestions.length} 条建议），开始生成。`, "info", { duration: 5000 });
     }
 
-    const imageGenOn = (currentSettings?.imageProviders || []).some((p) => p && p.enabled);
+    const imageGenOn = !IMAGE_GEN_RETIRED && (currentSettings?.imageProviders || []).some((p) => p && p.enabled);
 
     const prompt = [
       "【任务】根据下面的大纲，生成一份**正式商用风格**的 PPT。要求高级感版式，使用色板和形状装饰，不是单调的「标题+正文」模板感。",
@@ -11259,8 +11292,10 @@
     els.unifyModal.classList.add("hidden");
   }
 
+  // generate_image 工具已删除、设置里的「生图模型」也已隐藏：凡是会让模型去生图的提示词分支一律走"不配图"。
+  const IMAGE_GEN_RETIRED = true;
   function buildUnifyPrompt(outline, autoImage) {
-    const imageGenOn = (currentSettings?.imageProviders || []).some((p) => p && p.enabled);
+    const imageGenOn = !IMAGE_GEN_RETIRED && (currentSettings?.imageProviders || []).some((p) => p && p.enabled);
     const imagesEnabled = autoImage && imageGenOn;
     return [
       "【任务】对**当前已存在的** PPT 进行统一化和高级化处理：套用色板、加装饰、统一字体、按内容判断配图、加切换动画、检查空白页。",
@@ -15243,32 +15278,16 @@
         if (file) importSettings(file);
         ev.target.value = "";
       });
-      // 技能导入按钮
-      els.skillImportBtn?.addEventListener("click", () => els.skillImportFile?.click());
+      // 「导入技能」一个按钮两种来源：点开小菜单选「文件」或「文件夹」
+      els.skillImportBtn?.addEventListener("click", (ev) => { ev.stopPropagation(); toggleSkillImportMenu(els.skillImportBtn); });
       els.skillImportFile?.addEventListener("change", (ev) => {
         const file = ev.target.files?.[0];
         if (file) handleSkillImport(file);
         ev.target.value = "";
       });
-      els.skillImportDirBtn?.addEventListener("click", () => els.skillImportDir?.click());
       els.skillImportDir?.addEventListener("change", (ev) => {
         importSkillFolder(ev.target.files);
         ev.target.value = "";
-      });
-      // 刷新云端技能：从 OSS 目录重新拉取
-      els.skillCloudRefreshBtn?.addEventListener("click", async () => {
-        const btn = els.skillCloudRefreshBtn;
-        const orig = btn.textContent;
-        btn.disabled = true; btn.textContent = "刷新中…";
-        try {
-          const skills = await global.WpsAiSkills?.loadCloud?.();
-          renderSkillsList();
-          showMessage(`云端技能已刷新（${(skills || []).length} 个）。`, "success");
-        } catch (e) {
-          showMessage("云端技能刷新失败：" + (e?.message || e), "error");
-        } finally {
-          btn.disabled = false; btn.textContent = orig;
-        }
       });
       // MCP 服务开关：复用现有 setting 持久化 + 同步切 mcp-bridge 的 start/stop
       els.mcpServerEnabledInput?.addEventListener("change", () => {
@@ -15466,10 +15485,6 @@
     els.openSettingsModalBtn?.addEventListener("click", () => openSettingsAsDialog());
     els.settingsModalCloseBtn?.addEventListener("click", () => closeSettingsModal());
 
-    // 顶栏「新版本」呼吸徽章：直接跳设置→程序信息，让用户看 changelog + 下载
-    els.updateAvailableBadge?.addEventListener("click", () => openSettingsAsDialog("about", "about-update"));
-    // 顶栏灰度徽章：同样跳到程序信息，让用户知道自己在灰度通道
-    els.canaryHeaderBadge?.addEventListener("click", () => openSettingsAsDialog("about", "about-update"));
 
     // 停靠/浮动 切换按钮。Mac/Linux 主面板已是浮窗，直接隐藏该按钮（无需脱离/停靠）。
     if (preferFloatingPanel()) els.dockToggleBtn?.classList.add("hidden");
@@ -15773,11 +15788,14 @@
   // ============ 热更新 UI ============
   let _latestManifest = null; // 最近一次 checkForUpdate 返回的 manifest，下载用
 
+  // 「程序信息」面板（版本更新所在处）已从设置里下线：没有地方查看 / 安装更新了，
+  // 所以启动时不再自动查更新，顶栏也不再冒出点了没反应的「新版本」/ 灰度徽章。
+  const UPDATE_UI_RETIRED = true;
   function renderUpdateUi(result, opts) {
     // result = { current, latest, updateAvailable, manifest, checkedAt, channel, canaryReason, deviceSn } | null
     // 顶栏「新版本」呼吸徽章：在主 TaskPane（非 dialog）展示，点了跳设置→程序信息
     if (els.updateAvailableBadge) {
-      const showBadge = !!result?.updateAvailable;
+      const showBadge = !UPDATE_UI_RETIRED && !!result?.updateAvailable;
       els.updateAvailableBadge.classList.toggle("hidden", !showBadge);
       if (showBadge) {
         els.updateAvailableBadge.title = `发现新版本 v${result.latest}（当前 v${result.current}），点击查看`;
@@ -15798,7 +15816,7 @@
     // 主头栏灰度提示：canary 用户平时看不到自己在灰度通道，出了问题排障困难；
     // 用 header 徽章明示，点了跳到设置 → 程序信息看详情
     if (els.canaryHeaderBadge) {
-      const showCanary = channel === "canary";
+      const showCanary = !UPDATE_UI_RETIRED && channel === "canary";
       els.canaryHeaderBadge.classList.toggle("hidden", !showCanary);
       if (showCanary) {
         const reason = result?.canaryReason === "rollout" ? "rollout" : "whitelist";
@@ -15892,6 +15910,7 @@
 
   // 启动时按设置静默检查（不抛 toast，结果直接渲染到 UI）
   async function startupAutoCheckUpdate() {
+    if (UPDATE_UI_RETIRED) return;
     if (!currentSettings?.updateAutoCheck) return;
     if (!global.WpsAiUpdater) return;
     try {

@@ -38,22 +38,6 @@ const { isMetadataSsrfHost, isBlockedFetchHost } = require("./ssrf-guard");
 const kvStore = require("./kv-store.js");
 const skillZip = require("./skill-zip.js");
 const skillStore = require("./skill-store.js").createSkillStore();
-// 随包技能（SKILL.md + data/*.csv）装到 ~/.lingxi-ai/skills/，CSV 才能作为参考文件被按需读取。
-// 每个代理进程只查一次；放在首次 /skills/list 时做而不是模块加载时，避免单测 require 本文件就写用户目录。
-const BUNDLED_SKILLS = [{ dir: "ui-ux-pro-max", source: path.join(__dirname, "..", "skills", "ui-ux-pro-max") }];
-let bundledSkillsChecked = false;
-function ensureBundledSkills() {
-  if (bundledSkillsChecked) return;
-  bundledSkillsChecked = true;
-  for (const b of BUNDLED_SKILLS) {
-    try {
-      const result = skillStore.installBundled(b.source, b.dir);
-      if (result !== "current") console.log(`[skills] 内置技能 ${b.dir}: ${result}`);
-    } catch (e) {
-      console.warn(`[skills] 内置技能 ${b.dir} 安装失败:`, e && e.message ? e.message : e);
-    }
-  }
-}
 const { readSystemClipboardText, writeSystemClipboardText, writeSystemClipboardImage } = require("./clipboard.js");
 const { buildRemoteImageHeaders, shouldUseChromiumFallback } = require("./remote-image-fetch");
 const { fetchImageWithChromium } = require("./chromium-fetch");
@@ -2065,11 +2049,7 @@ const server = http.createServer(async (req, res) => {
   // ===== 技能磁盘存储：~/.lingxi-ai/skills/<技能目录>/（前端 WpsAiSkills 用）=====
   if (pathname.startsWith("/skills/")) {
     try {
-      if (pathname === "/skills/list" && method === "GET") {
-        ensureBundledSkills();
-        sendJson(res, 200, Object.assign({ ok: true }, skillStore.list()));
-        return;
-      }
+      if (pathname === "/skills/list" && method === "GET") { sendJson(res, 200, Object.assign({ ok: true }, skillStore.list())); return; }
       if (method !== "POST") { sendJson(res, 405, { ok: false, error: "method not allowed" }); return; }
       const json = JSON.parse((await readBody(req)).toString("utf8") || "{}");
       if (pathname === "/skills/put") { skillStore.put(json.dir, json.files); sendJson(res, 200, { ok: true }); return; }

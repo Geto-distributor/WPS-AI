@@ -5,7 +5,6 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const crypto = require("crypto");
 
 const LIMITS = {
   maxSkills: 500,
@@ -15,10 +14,6 @@ const LIMITS = {
 };
 const TRASH_DIR = ".trash";
 const MAIN_FILE = "SKILL.md";
-// 随插件发布的技能装到磁盘后，在技能目录里放这个标记文件：记下安装时每个文件的指纹，
-// 升级时据此区分「用户没动过（可以更新）」和「用户改过（保留用户的）」。以 . 开头，不会被当成技能文件。
-const BUNDLED_MARKER = ".lingxi-bundled.json";
-const sha1 = (text) => crypto.createHash("sha1").update(text, "utf8").digest("hex");
 
 function defaultRoot() {
   return process.env.LINGXI_SKILLS_DIR || path.join(os.homedir(), ".lingxi-ai", "skills");
@@ -100,9 +95,7 @@ function createSkillStore(rootDir) {
       if (!mainName) continue;
       let mtime = 0;
       try { mtime = fs.statSync(path.join(base, mainName)).mtimeMs; } catch (e) {}
-      const item = { dir: ent.name, mtime, files: readSkillFiles(base) };
-      if (fs.existsSync(path.join(base, BUNDLED_MARKER))) item.bundled = true;
-      skills.push(item);
+      skills.push({ dir: ent.name, mtime, files: readSkillFiles(base) });
     }
     return { root, skills };
   }
@@ -169,49 +162,7 @@ function createSkillStore(rootDir) {
     return true;
   }
 
-  // 把随插件发布的技能（sourceDir：含 SKILL.md + 数据文件）装到 <root>/<dir>/，让它的参考文件能被按需读取。
-  //   - 目录不存在 → 整包装上
-  //   - 目录存在但没有标记文件 → 是用户自己的同名技能，不碰
-  //   - 插件升级（源文件变了）→ 只更新用户没改过的文件；用户改过的保留
-  // 返回 "installed" | "current" | "updated" | "skipped"
-  function installBundled(sourceDir, dir) {
-    const base = skillDir(dir);
-    const source = readSkillFiles(path.resolve(sourceDir));
-    if (!source.some((f) => /^skill\.(md|markdown)$/i.test(f.path))) throw new Error(`内置技能源目录缺少 SKILL.md：${sourceDir}`);
-    const hashes = {};
-    source.forEach((f) => { hashes[f.path] = sha1(f.content); });
-    const markerPath = path.join(base, BUNDLED_MARKER);
-    const writeMarker = () => fs.writeFileSync(markerPath, JSON.stringify({ files: hashes }, null, 2), "utf8");
-
-    if (!fs.existsSync(base)) {
-      source.forEach((f) => writeFile(dir, f.path, f.content));
-      writeMarker();
-      return "installed";
-    }
-    let marker = null;
-    try { marker = JSON.parse(fs.readFileSync(markerPath, "utf8")); } catch (e) {}
-    if (!marker || typeof marker.files !== "object") return "skipped";
-    const old = marker.files;
-    const same = Object.keys(old).length === source.length && source.every((f) => old[f.path] === hashes[f.path]);
-    if (same) return "current";
-
-    const diskHash = (rel) => {
-      try { return sha1(fs.readFileSync(resolveInside(base, rel), "utf8").replace(/^\uFEFF/, "")); } catch (e) { return null; }
-    };
-    source.forEach((f) => {
-      const onDisk = diskHash(f.path);
-      // 磁盘上没有 / 和上次安装时一模一样 → 用户没动过，换成新版；否则是用户改过的，留着
-      if (onDisk === null || onDisk === old[f.path]) writeFile(dir, f.path, f.content);
-    });
-    Object.keys(old).forEach((rel) => {
-      if (hashes[rel] !== undefined) return;
-      try { if (diskHash(rel) === old[rel]) deleteFile(dir, rel); } catch (e) {} // 新版删掉的文件：用户没改过才跟着删
-    });
-    writeMarker();
-    return "updated";
-  }
-
-  return { root, list, writeFile, put, deleteFile, rename, remove, installBundled };
+  return { root, list, writeFile, put, deleteFile, rename, remove };
 }
 
-module.exports = { createSkillStore, defaultRoot, LIMITS, BUNDLED_MARKER };
+module.exports = { createSkillStore, defaultRoot, LIMITS };

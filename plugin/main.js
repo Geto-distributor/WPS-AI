@@ -165,7 +165,6 @@
     "js/tools/web.js",
     "js/tools/presentation.js",
     "js/tools/pdf.js",
-    "js/tools/image.js",
     "js/mcp-client-ui.js"    // MCP Client 设置面板
   ];
 

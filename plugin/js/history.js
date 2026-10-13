@@ -385,7 +385,6 @@
     wps_insert_paragraph: "插入段落",
     wps_remove_paragraph: "删除段落",
     // 通用
-    generate_image: "生成图片",
     use_skill: "调用技能",
     read_skill_file: "读取技能参考文件",
     save_skill: "保存 / 优化技能"
@@ -407,7 +406,7 @@
     const readonly = new Set([
       "wpp_list_slides", "wpp_read_slide", "wpp_get_notes",
       "wpp_get_presentation_info", "wpp_get_style_preset",
-      "query_materials", "web_fetch", "web_image_search", "generate_image",
+      "query_materials", "web_fetch", "web_image_search",
       "reveal_location", // 只定位/滚动/高亮，不改文档——不进 history、不触发"先存盘"拦截
       "use_skill", // 只加载技能指引文本给 AI，不改文档
       "save_skill", // 沉淀/优化技能到本地技能库，不改文档

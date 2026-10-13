@@ -83,7 +83,7 @@
           <!-- 聊天模型不在面板上选：固定用「设置 → 聊天模型」里唯一启用的那家供应商的默认模型。
                隐藏 <select> 只作数据源保留（大量 JS 读它的 .value）。 -->
           <select id="modelSelect" class="header-model-hidden" title="模型" aria-hidden="true"></select>
-          <span id="canaryHeaderBadge" class="badge badge-warning canary-header-badge hidden" title="你正在使用灰度版本，遇到问题可去「设置 → 程序信息」查看 / 回退">
+          <span id="canaryHeaderBadge" class="badge badge-warning canary-header-badge hidden" title="你正在使用灰度版本">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 14.3l-4.8 2.6.9-5.4L4.2 7.7l5.4-.8L12 2z"/></svg>
             <span>灰度</span>
           </span>
@@ -94,7 +94,7 @@
       <nav class="tab-bar" role="tablist">
         <button type="button" class="tab-btn active" data-tab="ai" role="tab">AI 助手</button>
         <button type="button" class="tab-btn" data-tab="history" role="tab">改动记录<span id="historyBadge" class="tab-badge hidden">0</span></button>
-        <button type="button" class="tab-btn" data-tab="image" role="tab">生图<span id="imageTaskBadge" class="tab-badge hidden"></span></button>
+        <button type="button" class="tab-btn tab-btn-retired" data-tab="image" role="tab" hidden>生图<span id="imageTaskBadge" class="tab-badge hidden"></span></button>
         <!-- 设置不再占用 Tab Bar，改为右侧 ⚙ 按钮 → 弹窗 -->
         <div class="tab-bar-spacer"></div>
         <!-- 新对话 / 历史对话 / 解锁 / 折叠：靠右，紧挨「脱离」按钮 -->
@@ -185,14 +185,6 @@
                 </svg>
                 <span>聊天模型</span>
               </button>
-              <button type="button" class="settings-sidebar-btn" data-settings-panel="image" role="tab">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                  <circle cx="8.5" cy="8.5" r="1.5"/>
-                  <polyline points="21 15 16 10 5 21"/>
-                </svg>
-                <span>生图模型</span>
-              </button>
               <button type="button" class="settings-sidebar-btn" data-settings-panel="general" role="tab">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <line x1="4" y1="6" x2="20" y2="6"/>
@@ -225,27 +217,12 @@
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9.5 10.5h3a1.5 1.5 0 0 1 0 3h-3"/></svg>
                 <span>Token 消耗</span>
               </button>
-              <button type="button" class="settings-sidebar-btn" data-settings-panel="service" role="tab">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><line x1="7" y1="7.5" x2="7.01" y2="7.5"/><line x1="7" y1="16.5" x2="7.01" y2="16.5"/></svg>
-                <span>服务状态</span>
-              </button>
-              <button type="button" class="settings-sidebar-btn" data-settings-panel="about" role="tab">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="12" y1="16" x2="12" y2="12"/>
-                  <line x1="12" y1="8" x2="12.01" y2="8"/>
-                </svg>
-                <span>程序信息</span>
-              </button>
-              <button type="button" class="settings-sidebar-btn" data-settings-panel="feedback" role="tab">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                </svg>
-                <span>Bug 反馈</span>
-              </button>
             </aside>
 
             <!-- 右侧主面板（每个 panel 独立 scroll） -->
+            <!-- 生图模型 / 服务状态 / 程序信息 / Bug 反馈 四个面板已从设置里下线：侧栏入口删了，
+                 对应 section 标成 settings-panel-retired（永远不显示、不参与切换和搜索）。
+                 标记暂时留着，是因为 app.js 里更新 / 缓存 / 生图渠道等逻辑还按 id 引用其中的元素。 -->
             <div class="settings-content">
 
               <!-- 聊天模型配置：多供应商列表 + 新增 -->
@@ -282,7 +259,7 @@
               </section>
 
               <!-- 生图模型配置（多渠道，互斥启用） -->
-              <section class="settings-panel hidden" data-settings-panel="image">
+              <section class="settings-panel-retired" data-retired-panel="image" hidden>
                 <div class="panel-header">
                   <h3>生图模型</h3>
                   <p class="muted">支持配置多个生图渠道（toapis 异步任务 / Codex 桥接 sub2api / OpenAI 官方 / OpenRouter / Boogu 本地生图），同一时刻只能启用一个。AI 调用 generate_image 生成图片后用 wps_insert_image 插入文档。</p>
@@ -393,24 +370,21 @@
               <section class="settings-panel hidden" data-settings-panel="skills">
                 <div class="panel-header">
                   <h3>技能 (Skills)</h3>
-                  <p class="muted">勾选启用的技能会自动追加到 AI 的系统提示，针对特定场景给 AI 更精准的指令。支持导入单个 .md / .txt，或带 references/ 等参考文件的技能包（文件夹 / .zip，需含 SKILL.md）。</p>
-                </div>
-                <div class="settings-actions">
-                  <button id="skillImportBtn" class="ghost-btn" type="button" title="导入单个 .md / .txt 技能，或 .zip 技能包">导入技能 (.md/.zip)</button>
-                  <button id="skillImportDirBtn" class="ghost-btn" type="button" title="选择一个含 SKILL.md 的技能文件夹，references/ 等参考文件会一并导入">导入技能文件夹</button>
-                  <button id="skillCloudRefreshBtn" class="ghost-btn" type="button" title="从云端（OSS）目录拉取最新技能">刷新云端技能</button>
-                  <input id="skillImportFile" type="file" accept=".md,.txt,.markdown,.zip,text/markdown,text/plain,application/zip" hidden />
-                  <input id="skillImportDir" type="file" webkitdirectory multiple hidden />
                 </div>
                 <div class="skills-filter">
-                  <div class="skills-search-wrap">
-                    <svg class="skills-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                    <input id="skillsSearchInput" class="skills-search-input" type="search" placeholder="搜索技能名字 / 描述"/>
+                  <!-- 一行：左边搜索框，右边「导入技能」 -->
+                  <div class="skills-toolbar">
+                    <div class="skills-search-wrap">
+                      <svg class="skills-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                      <input id="skillsSearchInput" class="skills-search-input" type="search" placeholder="搜索技能名字 / 描述"/>
+                    </div>
+                    <button id="skillImportBtn" class="ghost-btn skill-import-btn" type="button" title="导入技能：单个 .md / .txt、.zip 技能包，或含 SKILL.md 的文件夹" aria-haspopup="menu">导入技能</button>
+                    <input id="skillImportFile" type="file" accept=".md,.txt,.markdown,.zip,text/markdown,text/plain,application/zip" hidden />
+                    <input id="skillImportDir" type="file" webkitdirectory multiple hidden />
                   </div>
                   <div id="skillsCategoryChips" class="skills-category-chips"></div>
                 </div>
                 <div id="skillsList" class="skills-list"></div>
-                <small class="field-tip" style="display:block;margin-top:8px">导入文件格式：可选 frontmatter (<code>--- name: xxx description: xxx ---</code>)，余下是技能正文。无 frontmatter 时用第一个 <code>#</code> 标题或文件名作为名字。</small>
               </section>
 
               <!-- MCP 服务：把 WPS 工具通过 MCP 协议暴露给外部 agent (Claude Code CLI 等) -->
@@ -539,7 +513,7 @@
               </section>
 
               <!-- 服务状态：端口 / 内存 -->
-              <section class="settings-panel hidden" data-settings-panel="service">
+              <section class="settings-panel-retired" data-retired-panel="service" hidden>
                 <div class="panel-header">
                   <h3>服务状态</h3>
                   <p class="muted">本机后台服务（承载 AI 调用 / 图表 / SQLite 缓存）占用的端口与内存。</p>
@@ -557,7 +531,7 @@
               </section>
 
               <!-- 程序信息：关于 / 版本 / 导入导出 / 更新 -->
-              <section class="settings-panel settings-panel-subtabs hidden" data-settings-panel="about">
+              <section class="settings-panel-retired" data-retired-panel="about" hidden>
                 <div class="panel-header">
                   <h3>程序信息</h3>
                 </div>
@@ -707,7 +681,7 @@
               </section>
 
               <!-- Bug 反馈：独立 Tab Panel -->
-              <section class="settings-panel hidden" data-settings-panel="feedback">
+              <section class="settings-panel-retired" data-retired-panel="feedback" hidden>
                 <div class="panel-header">
                   <h3>Bug 反馈</h3>
                 </div>

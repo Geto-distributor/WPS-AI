@@ -87,10 +87,9 @@ Not supported: WebOffice, mobile WPS, lower-versioned desktop clients — JSAPI 
 - Progress bar includes the most recent reasoning/output tail
 - AI-working doc-lock banner merged with progress indicator (no longer visually stacked)
 - Attachments: image / PDF / text files
-- System prompt customizable; "Skills" (5 built-in + import): the system prompt lists skill names and descriptions only, and the AI loads the body on demand
+- System prompt customizable; "Skills" (imported by you; none are built in): the system prompt lists skill names and descriptions only, and the AI loads the body on demand
 - Multi-file skills: import a folder / .zip containing `SKILL.md`; reference files such as `references/` are read by the AI on demand. Settings shows them as a file tree where files can be edited / created / deleted (running `scripts/` is not supported)
 - Custom skills live on disk at `~/.lingxi-ai/skills/<skill name>/`; edit them with any editor or drop a folder in and they take effect on the next chat turn. Deleted skills are moved to `.trash/` in the same directory
-- The built-in "UI/UX Pro Max" skill and its 7 data CSVs are installed to `~/.lingxi-ai/skills/ui-ux-pro-max/`, with the CSVs readable on demand as reference files; plugin upgrades only replace files you have not modified
 
 **Safety**
 - Hard doc lock while AI works (Word `Document.Protect` / Excel `UserInterfaceOnly`)
@@ -132,7 +131,7 @@ plugin/
 │   ├── tools/*                    # AI-callable tools (grouped by host + registry)
 │   ├── html-templates/*           # template system (cache / components / renderer / studio)
 │   ├── mcp-bridge.js              # MCP bridge (plugin side)
-│   └── skills.js                  # skills (built-in + import)
+│   └── skills.js                  # skills (import / disk storage)
 └── tools/
     ├── proxy-server.js            # CORS proxy + file ops + backup + MCP endpoints
     ├── mcp-server.js              # stdio MCP server (for external agents)

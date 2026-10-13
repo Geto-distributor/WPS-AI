@@ -125,10 +125,9 @@ WPS 宿主（文字/表格/演示/PDF）
 - 多对话管理 + 历史独立弹窗（今天 / 7 天内 / 7 天前 分组）
 - 生图独立 tab；工具调用气泡默认只显示尾部参数预览，结果到达即收起（设置里可开完整 JSON 日志）
 - AI 工作期间文档锁定 banner + 进度合并
-- 系统提示词可定制；「技能」（内置 5 套 + 导入）：system prompt 只列技能名和简介，AI 命中后按需加载正文
+- 系统提示词可定制；「技能」（自行导入，不带内置技能）：system prompt 只列技能名和简介，AI 命中后按需加载正文
 - 多文件技能：导入含 `SKILL.md` 的文件夹 / .zip，`references/` 等参考文件由 AI 按需读取；设置里以目录树查看，可编辑 / 新建 / 删除文件（不支持执行 `scripts/`）
 - 自定义技能存在磁盘 `~/.lingxi-ai/skills/<技能名>/`，可直接用编辑器改或把文件夹拷进去，下一轮对话即生效；删除的技能挪到同目录的 `.trash/`
-- 内置的「UI/UX Pro Max」连同 7 个数据 CSV 也装到 `~/.lingxi-ai/skills/ui-ux-pro-max/`，CSV 作为参考文件按需读取；插件升级时只更新你没改过的文件
 
 ### 操作安全
 
@@ -176,7 +175,7 @@ plugin/
 │   ├── mcp-client.js / mcp-client-ui.js   # MCP Client（plugin 侧）
 │   ├── mcp-bridge.js               # MCP Server 桥（plugin 侧）
 │   ├── history.js                  # 改动记录 + 快照
-│   └── skills.js                   # 技能（内置 + 导入）
+│   └── skills.js                   # 技能（导入 / 磁盘存储）
 └── tools/
     ├── proxy-server.js             # CORS 代理 + 文件 / 备份 / MCP 端点
     ├── mcp-client-manager.js       # MCP Client 连接管理（stdio / SSE，Node 侧）

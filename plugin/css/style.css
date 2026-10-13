@@ -9627,3 +9627,47 @@ body.pure-mode .image-gen-panel.hidden { display: none; }
 .thinking-menu-item:hover { background: var(--surface, #f5f7fa); }
 .thinking-menu-item.active { color: var(--primary, #2563eb); }
 .thinking-menu-check { width: 14px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--primary, #2563eb); }
+
+/* 已下线的设置面板（见 taskpane.html）：无论别处怎么切 class 都不显示 */
+.settings-panel-retired { display: none !important; }
+
+/* 技能页工具行：左边搜索框（限宽，不撑满整行），右边「导入技能」 */
+.skills-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.skills-toolbar .skills-search-wrap { flex: 0 1 280px; min-width: 0; }
+.skills-toolbar .skill-import-btn { flex: none; margin: 0 0 0 auto; }
+/* 「导入技能」下拉：选文件 / 选文件夹（浏览器的文件选择框不能同时选文件和文件夹，所以分两项） */
+.skill-import-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 190px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #d1d9e6);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .15);
+}
+.skill-import-menu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text, #1f2329);
+  cursor: pointer;
+  font-family: inherit;
+}
+.skill-import-menu-item:hover { background: var(--surface, #f5f7fa); }
+.skill-import-menu-item small { font-size: 11px; color: var(--muted, #6b7280); }
+
+/* 「生图」页签已下线（generate_image 工具已删除）：按钮留在 DOM 里只为不动页签切换逻辑 */
+.tab-btn-retired { display: none !important; }

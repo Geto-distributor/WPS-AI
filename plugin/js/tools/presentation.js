@@ -2498,7 +2498,7 @@
       "",
       "**配图复用**：插图前可先调 query_materials（按 tags/project/关键词）看素材库有没有可复用的图，命中就直接用它的 url 写进 <img src>，省一次生成。",
       "**配图分步生成**：freeform HTML 里需 AI 生成的图片，用 <img data-gen-prompt=\"图像描述\" data-gen-size=\"16:9\"> 声明（size/resolution 可选）。",
-      "  工具会先用占位骨架把整套 deck 秒级插入供预览，再后台异步生成图片、每页图齐后自动替换。**不要**为了配图先去逐个调 generate_image 再拼 URL——直接在 HTML 里写 data-gen-prompt 即可。已有确定 URL 的图片照常写 src。"
+      "  工具会先用占位骨架把整套 deck 秒级插入供预览，再后台异步生成图片、每页图齐后自动替换。直接在 HTML 里写 data-gen-prompt 即可，不需要也没有单独的生图工具可调。已有确定 URL 的图片照常写 src。"
     ].join("\n"),
     parameters: {
       type: "object",

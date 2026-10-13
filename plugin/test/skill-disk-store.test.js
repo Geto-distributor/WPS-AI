@@ -188,7 +188,7 @@ test("迁移：KV 里的老技能首次启动搬到磁盘，启用状态换新 i
       { id: "sk-old1", name: "老技能", description: "d", content: "老正文", builtin: false, files: [{ path: "references/a.md", content: "A" }] },
       { id: "sk-old2", name: "没启用的", content: "x", builtin: false }
     ],
-    enabled: ["builtin-ppt-designer", "sk-old1"]
+    enabled: ["cloud-keep", "sk-old1"]
   };
   const first = loadSkills(root, { legacy });
   assert.strictEqual(first.S.list().filter((s) => !s.builtin).length, 2, "init 之前仍从 KV 读");
@@ -197,7 +197,7 @@ test("迁移：KV 里的老技能首次启动搬到磁盘，启用状态换新 i
   assert.ok(exists(root, "没启用的", "SKILL.md"));
   assert.strictEqual(first.S.isEnabled("user:老技能"), true);
   assert.strictEqual(first.S.isEnabled("user:没启用的"), false);
-  assert.strictEqual(first.S.isEnabled("builtin-ppt-designer"), true);
+  assert.strictEqual(first.S.isEnabled("cloud-keep"), true, "别的启用项不受迁移影响");
   assert.ok(first.kv.getItem("lingxi_skills_disk_migrated_v1"));
   assert.ok(first.kv.getItem("lingxi_skills_user_v1"), "KV 里的原数据留作备份");
 
@@ -276,74 +276,4 @@ test("重读磁盘在途时本地又改了：过期的读取结果不会把刚�
   S.writeFile("user:新名", "references/a.md", "A"); // 后续操作还能接着做
   await S.whenSaved();
   assert.strictEqual(read(root, "新名", "references", "a.md"), "A");
-});
-
-const BUNDLED_SRC = path.join(__dirname, "..", "skills", "ui-ux-pro-max");
-
-test("内置 UI/UX Pro Max 装到磁盘：SKILL.md + 7 个 CSV 落盘，前端把它们挂到内置技能上而不是变成自定义技能", async () => {
-  const root = tmpRoot();
-  const { S, store, calls } = loadSkills(root);
-  assert.strictEqual(store.installBundled(BUNDLED_SRC, "ui-ux-pro-max"), "installed");
-  assert.strictEqual(store.installBundled(BUNDLED_SRC, "ui-ux-pro-max"), "current", "再装一次什么都不做");
-  const csvOnDisk = fs.readdirSync(path.join(root, "ui-ux-pro-max", "data")).sort();
-  assert.deepStrictEqual(csvOnDisk, ["charts.csv", "colors.csv", "design.csv", "styles.csv", "typography.csv", "ui-reasoning.csv", "ux-guidelines.csv"]);
-  assert.strictEqual(read(root, "ui-ux-pro-max", "data", "colors.csv"), fs.readFileSync(path.join(BUNDLED_SRC, "data", "colors.csv"), "utf8"));
-
-  await S.init();
-  assert.deepStrictEqual(S.list().filter((s) => !s.builtin), [], "不会多出一条自定义技能");
-  const builtin = S.get("builtin-ui-ux-pro-max");
-  assert.strictEqual(builtin.builtin, true);
-  assert.strictEqual(builtin.name, "UI/UX Pro Max 设计智能", "名字 / 简介 / hostFilter 仍用内置定义");
-  assert.deepStrictEqual(builtin.hostFilter, ["wpp"]);
-  assert.deepStrictEqual(S.listFiles(builtin), csvOnDisk.map((n) => "data/" + n), "7 个 CSV 都能读，全部在单文件 / 总量上限内");
-  assert.match(S.readFile(builtin, "data/colors.csv"), /^No,Product Type,Primary/);
-  assert.ok((await S.loadContent(builtin)).length > 10000, "正文也来自磁盘，不用再 fetch contentPath");
-
-  // 前端对这个目录只读：别的技能增删改不会碰它
-  S.addUser({ name: "别的技能", content: "x" });
-  S.removeUser("user:别的技能");
-  await S.whenSaved();
-  assert.deepStrictEqual(calls.filter((c) => c !== "list"), ["put", "delete"]);
-  assert.strictEqual(fs.readdirSync(path.join(root, "ui-ux-pro-max", "data")).length, 7);
-});
-
-test("内置技能升级：没动过的文件换新版，用户改过的保留；用户自己的同名目录不碰", () => {
-  const root = tmpRoot();
-  const src = tmpRoot();
-  const store = createSkillStore(root);
-  const writeSrc = (rel, text) => { fs.mkdirSync(path.dirname(path.join(src, rel)), { recursive: true }); fs.writeFileSync(path.join(src, rel), text); };
-  writeSrc("SKILL.md", "---\nname: demo\n---\nv1");
-  writeSrc("data/a.csv", "a-v1");
-  writeSrc("data/b.csv", "b-v1");
-  writeSrc("data/gone.csv", "gone-v1");
-  assert.strictEqual(store.installBundled(src, "demo"), "installed");
-
-  fs.writeFileSync(path.join(root, "demo", "data", "b.csv"), "b-用户改过");
-  fs.writeFileSync(path.join(root, "demo", "data", "mine.csv"), "用户自己加的");
-  writeSrc("SKILL.md", "---\nname: demo\n---\nv2");
-  writeSrc("data/a.csv", "a-v2");
-  writeSrc("data/b.csv", "b-v2");
-  writeSrc("data/new.csv", "new-v2");
-  fs.unlinkSync(path.join(src, "data", "gone.csv"));
-
-  assert.strictEqual(store.installBundled(src, "demo"), "updated");
-  assert.match(read(root, "demo", "SKILL.md"), /v2$/);
-  assert.strictEqual(read(root, "demo", "data", "a.csv"), "a-v2");
-  assert.strictEqual(read(root, "demo", "data", "b.csv"), "b-用户改过", "用户改过的不覆盖");
-  assert.strictEqual(read(root, "demo", "data", "new.csv"), "new-v2");
-  assert.strictEqual(read(root, "demo", "data", "mine.csv"), "用户自己加的");
-  assert.ok(!exists(root, "demo", "data", "gone.csv"), "新版去掉、用户也没改过的文件跟着删");
-  assert.strictEqual(store.installBundled(src, "demo"), "current");
-  assert.strictEqual(read(root, "demo", "data", "b.csv"), "b-用户改过", "之后的启动也不会再去覆盖它");
-
-  // 整个目录被用户删了 → 重新装回来
-  fs.rmSync(path.join(root, "demo"), { recursive: true });
-  assert.strictEqual(store.installBundled(src, "demo"), "installed");
-
-  // 用户自己建的同名技能（没有标记文件）→ 不碰，前端照常当自定义技能
-  store.put("mine", [{ path: "SKILL.md", content: "用户的" }]);
-  assert.strictEqual(store.installBundled(src, "mine"), "skipped");
-  assert.strictEqual(read(root, "mine", "SKILL.md"), "用户的");
-  assert.ok(!store.list().skills.find((s) => s.dir === "mine").bundled);
-  assert.strictEqual(store.list().skills.find((s) => s.dir === "demo").bundled, true);
 });

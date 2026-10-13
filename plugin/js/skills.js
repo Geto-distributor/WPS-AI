@@ -1,5 +1,5 @@
 // 技能（Skills）模块：
-// - 内置技能（hardcoded）：针对 WPS 各宿主调好的指令模板（PPT 设计师 / Word 润色 / Excel 数据助手 / PDF 阅读）
+// - 内置技能：目前为空（见 BUILTIN）
 // - 用户导入技能：单个 .md / .txt，或「技能包」（文件夹 / .zip：SKILL.md + references/ 等附属文本文件）
 // - 启用的技能在 chat 时拼到 system prompt 后面
 // - 自定义技能存磁盘：~/.lingxi-ai/skills/<技能名>/SKILL.md (+ references/ …)，经本地代理 /skills/* 读写。
@@ -28,91 +28,9 @@
     return pre + encodeURIComponent(url);
   }
 
-  // ===== 内置技能（开箱即用，针对 WPS 各宿主场景）=====
-  const BUILTIN = [
-    {
-      id: "builtin-ppt-designer",
-      name: "PPT 视觉设计师",
-      description: "做 PPT 时遵循专业视觉设计原则：强对比、留白、层级、配色。AI 生成或修改 PPT 时启用。",
-      builtin: true,
-      content: [
-        "你做 PPT 时严格遵循以下视觉设计原则：",
-        "1. **强对比**：标题用大字号 + 加粗，正文 18-22pt，标题至少 40pt；标题颜色用 primaryColor，正文用 bodyColor（自动跟着 stylePreset 来）。",
-        "2. **充足留白**：四边 margin ≥ 80px（1920×1080 画布下），元素之间 gap 至少 40px。绝对避免内容贴边或挤成一坨。",
-        "3. **清晰层级**：一页最多 3 个视觉层级；用 size + weight + color 三种手段拉开；每页只有一个视觉重点。",
-        "4. **配色克制**：每页用色板里的 2-3 个颜色，**绝对不超过 5 种**；accentColor 只用于关键数字/重点；surfaceColor 用于卡片底色。",
-        "5. **字号映射**：1pt = 2px（1920×1080 画布）。封面巨标题 120-192px / H1 80-108px / H2 56-72px / 正文 36-44px / 卡片 32-40px / 脚注 22-28px。**绝对不要 < 20px**。",
-        "6. **数据可视化优先**：有数字/趋势/占比/多维比较时用 ECharts，比纯文字描述强 10 倍。",
-        "7. **避免反模式**：项目符号铺满整页、大段正文、4 色以上配色、3 种以上字体、装饰元素抢戏、贴边不留白。"
-      ].join("\n")
-    },
-    {
-      id: "builtin-word-polish",
-      name: "Word 中文润色",
-      description: "改 Word 文档时按中文写作规范润色：简练、主动语态、去口语化、专业措辞。",
-      builtin: true,
-      content: [
-        "你处理 Word 文档时遵循中文写作规范：",
-        "1. **简练**：删冗余词（「进行」「一些」「的话」「其实」「然后」「那么」等填充词）、合并短句。",
-        "2. **主动语态优先**：把「被 X 所 Y」改成「X Y」；少用「被」。",
-        "3. **去口语化**：「我觉得」→「显然」或直接陈述；「挺好的」→ 具体描述；不用「嗯」「啊」「呢」等语气词。",
-        "4. **术语统一**：同一个概念在全文里用一致的术语，第一次出现给定义或英文原文。",
-        "5. **段落结构**：每段一个核心论点，首句点题；段落之间用逻辑词承接（「因此」「然而」「相比之下」）。",
-        "6. **数字规范**：正文 0-10 用汉字，11+ 用阿拉伯数字；百分比、年份、版本号一律阿拉伯数字。",
-        "7. **标点严谨**：中文标点（，。：；？！「」）；不用中英文混标。",
-        "8. **保留原意**：润色不是改写，保持作者原意和事实，只调表达方式。"
-      ].join("\n")
-    },
-    {
-      id: "builtin-excel-data",
-      name: "Excel 数据助手",
-      description: "处理 Excel 时按数据分析最佳实践：表头清晰、公式规范、命名区域、不破坏原数据。",
-      builtin: true,
-      content: [
-        "你处理 Excel 表格时遵循以下规范：",
-        "1. **保留原数据**：原始数据 sheet 不动；新增公式/汇总放新 sheet 或新区域。",
-        "2. **公式规范**：用绝对引用锁定区域（$A$1:$A$100），命名区域代替 magic range（用「销售额」代替 D2:D100）。",
-        "3. **避免硬编码**：阈值/系数放单独单元格做参数，公式引用它，方便用户调参。",
-        "4. **错误处理**：用 IFERROR / IFNA 包住可能出错的公式，避免满屏 #N/A。",
-        "5. **表头**：第一行始终是表头（加粗 + 浅底色）；下面不要插空行。",
-        "6. **数据类型**：日期统一格式（YYYY-MM-DD），数字保留必要小数位，文本不要混数字。",
-        "7. **汇总优先用 SUMIFS/COUNTIFS/AVERAGEIFS**：可读性 > VLOOKUP 嵌套；XLOOKUP 在新版 Excel 里替代 VLOOKUP。",
-        "8. **透视表 / Power Query**：复杂聚合用透视表；数据清洗用 Power Query 步骤，记得告诉用户怎么 refresh。"
-      ].join("\n")
-    },
-    {
-      id: "builtin-pdf-reader",
-      name: "PDF 阅读助手",
-      description: "处理 PDF 文档时按知识工作者节奏：先抓结构、再概要、再深挖；引用具体页码。",
-      builtin: true,
-      content: [
-        "你处理 PDF 文档时按这套节奏：",
-        "1. **先看目录/章节结构**：用户问之前，先扫一遍 outline 或前几页，建立全文骨架。",
-        "2. **概要回答**：用户问问题先用 1-2 句回答核心，再展开细节，避免直接铺长答案。",
-        "3. **引用页码**：所有论断都标注来源页（如「第 5 页提到...」「图 3 显示...」），便于用户回查。",
-        "4. **量化优先**：PDF 里出现数字、表格、图表时优先引用具体数字，比抽象描述更有信息量。",
-        "5. **术语保留**：专业术语用原文（中文 PDF 保留中文，英文 PDF 保留英文），不强行翻译让用户产生歧义。",
-        "6. **结构化输出**：列表 / 表格 / 时间线等结构化内容用 markdown 还原，不要全段落叙述。",
-        "7. **不知道就说不知道**：PDF 没覆盖的问题直接讲「原文未提及」，不要瞎编。"
-      ].join("\n")
-    },
-    {
-      // UI/UX Pro Max 设计智能 —— 引入 nextlevelbuilder/ui-ux-pro-max-skill 的设计知识库。
-      // content 大（44KB SKILL.md），用 contentPath 懒加载，第一次用到才 fetch + 缓存。
-      // 这条 skill 用于「用 HTML 生成 PPT」自由设计场景：当用户在 prompt 里明确风格时
-      // (cyberpunk / 极简 / 玻璃拟态 / 暗黑等), 用户的样式预设让位给这套设计自由度。
-      id: "builtin-ui-ux-pro-max",
-      name: "UI/UX Pro Max 设计智能",
-      description: "50+ 风格 / 161 色板 / 57 字体配对 / 99 UX 准则 / 25 图表类型。AI 用 HTML 生成 PPT 时按需引用，让幻灯片不再千篇一律。来自 nextlevelbuilder/ui-ux-pro-max-skill（MIT）。",
-      builtin: true,
-      contentPath: "skills/ui-ux-pro-max/SKILL.md",
-      // 代理会把整个技能目录（含 data/*.csv）装到 ~/.lingxi-ai/skills/ui-ux-pro-max/；
-      // 装好后正文和参考文件都从磁盘读（见 loadFromDisk），contentPath 只是代理不可用时的兜底。
-      diskDir: "ui-ux-pro-max",
-      // 只在 PPT 宿主注入；其他宿主聊天不浪费 ~10K 个 token
-      hostFilter: ["wpp"]
-    }
-  ];
+  // 内置技能：目前一条都不带（原来的 PPT 设计师 / Word 润色 / Excel 数据助手 / PDF 阅读 / UI-UX Pro Max 已移除）。
+  // 列表、启用状态等逻辑仍按「内置 → 云端 → 自定义」处理，以后要加回内置技能往这个数组里放即可。
+  const BUILTIN = [];
 
   // 懒加载缓存：内容来源(url/contentPath) → 已 fetch 的 content
   const _contentCache = new Map();
@@ -214,7 +132,6 @@
   const MAIN_FILE = "SKILL.md";
   let _backend = "kv";
   let _cache = [];
-  let _builtinDisk = new Map(); // 内置技能 id → { content, files }：随包技能装到磁盘后的正文 + 参考文件
   let _snapshot = new Map(); // 磁盘上已知状态：dir → Map(path → content)，用来算最小写盘操作
   let _chain = Promise.resolve();
   let _writeError = null;
@@ -337,19 +254,11 @@
     if (rev !== _rev && _backend === "disk") return;
     const entries = [];
     const snapshot = new Map();
-    const builtinDisk = new Map();
     (json.skills || []).forEach((raw) => {
       try {
         const main = (raw.files || []).find((f) => SKILL_MD_RE.test(f.path));
         if (!main) return;
         const built = buildSkillFromFiles(raw.files, raw.dir);
-        // 随包技能的目录（代理装的，带标记）：不当成自定义技能，而是给对应内置技能补上正文和参考文件；
-        // 不进 snapshot，所以本模块永远不会去写 / 删它。没标记的同名目录是用户自己的，照常当自定义技能。
-        const builtin = raw.bundled ? BUILTIN.find((b) => b.diskDir === raw.dir) : null;
-        if (builtin) {
-          builtinDisk.set(builtin.id, { content: built.content, files: built.files });
-          return;
-        }
         const entry = {
           id: diskId(raw.dir), dir: raw.dir, mainPath: main.path, raw: main.content,
           name: built.name, description: built.description, content: built.content,
@@ -362,7 +271,6 @@
     });
     _cache = entries;
     _snapshot = snapshot;
-    _builtinDisk = builtinDisk;
     _backend = "disk";
   }
 
@@ -441,14 +349,7 @@
 
   // 列出全部（内置 → 云端 → 用户自定义）
   function list() {
-    const builtins = BUILTIN.map((b) => {
-      const onDisk = _builtinDisk.get(b.id);
-      if (!onDisk) return b;
-      const merged = Object.assign({}, b, { content: onDisk.content });
-      if (onDisk.files.length) merged.files = onDisk.files;
-      return merged;
-    });
-    return builtins.concat(readCloudSkills()).concat(readUserSkills());
+    return BUILTIN.concat(readCloudSkills()).concat(readUserSkills());
   }
 
   function get(id) {
