@@ -14259,6 +14259,8 @@
       const text = els.chatInput.value.trim();
       if (!text) return;
       els.chatInput.value = "";
+      // 诊断指令：不发给模型，直接在对话里显示结果（正式包里打不开开发者工具时用）
+      if (text === "/probe-hosts") { appendChatMsg("user", text); appendChatMsg("assistant", probeHostApplications()); return; }
       await runChatTurn(text);
     });
     installChatInputContextMenu(els.chatInput);
@@ -14810,6 +14812,42 @@
         if (active) applySlashChoice(active.dataset.kind, active.dataset.key);
       }
     });
+  }
+
+  // 诊断：在当前宿主（比如 WPS 文字）的插件页里，能不能拿到别的组件（表格 / 演示 / PDF）的应用对象、
+  // 看到它们已打开的文档。用来判断「参考文档」能否直接通过 WPS 读已打开的 Excel / PDF，还是只能读磁盘。
+  // 在聊天框输入 /probe-hosts 触发；只读，不改任何文档。
+  function probeHostApplications() {
+    const out = { host: currentHostInfo?.host || "", ua: navigator.userAgent };
+    const names = (coll) => {
+      const list = [];
+      const n = Number(coll.Count) || 0;
+      for (let i = 1; i <= Math.min(n, 10); i += 1) {
+        try { const it = coll.Item(i); list.push(String(it.Name || it.FullName || "")); } catch (e) { list.push("?" + (e?.message || e)); }
+      }
+      return { count: n, names: list };
+    };
+    const probe = (label, getter) => {
+      let app = null;
+      try { app = getter(); } catch (e) { out[label] = "报错: " + (e?.message || e); return; }
+      if (!app) { out[label] = "空"; return; }
+      const info = {};
+      [["Documents", "文字"], ["Workbooks", "表格"], ["Presentations", "演示"]].forEach(([prop, zh]) => {
+        try { const c = app[prop]; info[zh] = c ? names(c) : "无此集合"; } catch (e) { info[zh] = "报错: " + (e?.message || e); }
+      });
+      ["ActiveDocument", "ActiveWorkbook", "ActivePresentation", "ActivePDF"].forEach((prop) => {
+        try { const d = app[prop]; if (d) info[prop] = String(d.Name || d.FullName || "有对象但无名字"); } catch (e) {}
+      });
+      out[label] = info;
+    };
+    const w = global.wps;
+    probe("Application", () => global.Application);
+    probe("wps.WpsApplication()", () => (typeof w?.WpsApplication === "function" ? w.WpsApplication() : null));
+    probe("wps.EtApplication()", () => (typeof w?.EtApplication === "function" ? w.EtApplication() : null));
+    probe("wps.WppApplication()", () => (typeof w?.WppApplication === "function" ? w.WppApplication() : null));
+    probe("wps.PdfApplication()", () => (typeof w?.PdfApplication === "function" ? w.PdfApplication() : null));
+    try { out.wpsKeys = w ? Object.keys(w).filter((k) => /Application|App$/i.test(k)) : []; } catch (e) {}
+    return "```json\n" + JSON.stringify(out, null, 2) + "\n```";
   }
 
   function setupChatPanelUx() {
