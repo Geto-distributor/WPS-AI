@@ -31,11 +31,8 @@ function looksBinary(data) {
   return false;
 }
 
-/**
- * @param {Buffer} buf zip 文件内容
- * @returns {{ files: {path:string, content:string}[], skipped: {path:string, reason:string}[] }}
- */
-function extractTextFiles(buf, limits) {
+// 读 zip 中央目录，列出全部条目（不解压）。docx / xlsx / pptx 本质也是 zip，文档解析（doc-extract.js）复用这里。
+function listZipEntries(buf, limits) {
   const lim = Object.assign({}, DEFAULT_LIMITS, limits || {});
   if (!Buffer.isBuffer(buf) || buf.length < 22) throw new Error("不是有效的 zip 文件");
   if (buf.length > lim.maxZipBytes) throw new Error(`zip 超过 ${Math.round(lim.maxZipBytes / 1024 / 1024)}MB 上限`);
@@ -45,45 +42,64 @@ function extractTextFiles(buf, limits) {
   const cdOffset = buf.readUInt32LE(eocd + 16);
   if (total === 0xffff || cdOffset === 0xffffffff) throw new Error("暂不支持 zip64 格式的压缩包");
   if (total > lim.maxEntries) throw new Error(`zip 内条目过多（${total}）`);
-
-  const files = [];
-  const skipped = [];
-  let totalBytes = 0;
+  const entries = [];
   let p = cdOffset;
   for (let i = 0; i < total; i += 1) {
     if (p + 46 > buf.length || buf.readUInt32LE(p) !== SIG_CENTRAL) throw new Error("zip 目录损坏");
-    const flags = buf.readUInt16LE(p + 8);
-    const method = buf.readUInt16LE(p + 10);
-    const compSize = buf.readUInt32LE(p + 20);
-    const rawSize = buf.readUInt32LE(p + 24);
     const nameLen = buf.readUInt16LE(p + 28);
-    const extraLen = buf.readUInt16LE(p + 30);
-    const commentLen = buf.readUInt16LE(p + 32);
-    const localOffset = buf.readUInt32LE(p + 42);
-    const name = buf.slice(p + 46, p + 46 + nameLen).toString("utf8").replace(/\\/g, "/");
-    p += 46 + nameLen + extraLen + commentLen;
+    entries.push({
+      name: buf.slice(p + 46, p + 46 + nameLen).toString("utf8").replace(/\\/g, "/"),
+      flags: buf.readUInt16LE(p + 8),
+      method: buf.readUInt16LE(p + 10),
+      compSize: buf.readUInt32LE(p + 20),
+      rawSize: buf.readUInt32LE(p + 24),
+      localOffset: buf.readUInt32LE(p + 42)
+    });
+    p += 46 + nameLen + buf.readUInt16LE(p + 30) + buf.readUInt16LE(p + 32);
+  }
+  return entries;
+}
 
+// 解压单个条目；不支持 / 损坏 / 超限时抛错，message 即跳过原因
+function readZipEntry(buf, entry, maxBytes) {
+  if (entry.flags & 0x1) throw new Error("加密");
+  if (entry.method !== 0 && entry.method !== 8) throw new Error("不支持的压缩方式");
+  if (entry.rawSize > maxBytes) throw new Error("文件过大");
+  const lo = entry.localOffset;
+  if (lo + 30 > buf.length || buf.readUInt32LE(lo) !== SIG_LOCAL) throw new Error("条目损坏");
+  const dataStart = lo + 30 + buf.readUInt16LE(lo + 26) + buf.readUInt16LE(lo + 28);
+  const comp = buf.slice(dataStart, dataStart + entry.compSize);
+  let data;
+  try {
+    // maxOutputLength：声明的 rawSize 不可信，解压时再卡一道
+    data = entry.method === 0 ? comp : zlib.inflateRawSync(comp, { maxOutputLength: maxBytes });
+  } catch (e) { throw new Error("解压失败"); }
+  if (data.length > maxBytes) throw new Error("文件过大");
+  return data;
+}
+
+/**
+ * @param {Buffer} buf zip 文件内容
+ * @returns {{ files: {path:string, content:string}[], skipped: {path:string, reason:string}[] }}
+ */
+function extractTextFiles(buf, limits) {
+  const lim = Object.assign({}, DEFAULT_LIMITS, limits || {});
+  const files = [];
+  const skipped = [];
+  let totalBytes = 0;
+  for (const entry of listZipEntries(buf, lim)) {
+    const name = entry.name;
     if (!name || name.endsWith("/")) continue; // 目录条目
     const skip = (reason) => skipped.push({ path: name, reason });
-    if (flags & 0x1) { skip("加密"); continue; }
-    if (method !== 0 && method !== 8) { skip("不支持的压缩方式"); continue; }
-    if (rawSize > lim.maxFileBytes) { skip("文件过大"); continue; }
-    if (files.length >= lim.maxFiles) { skip("文件数超过上限"); continue; }
-    if (totalBytes + rawSize > lim.maxTotalBytes) { skip("总大小超过上限"); continue; }
-    if (localOffset + 30 > buf.length || buf.readUInt32LE(localOffset) !== SIG_LOCAL) { skip("条目损坏"); continue; }
-    const dataStart = localOffset + 30 + buf.readUInt16LE(localOffset + 26) + buf.readUInt16LE(localOffset + 28);
-    const comp = buf.slice(dataStart, dataStart + compSize);
+    if (entry.rawSize <= lim.maxFileBytes && files.length >= lim.maxFiles) { skip("文件数超过上限"); continue; }
+    if (entry.rawSize <= lim.maxFileBytes && totalBytes + entry.rawSize > lim.maxTotalBytes) { skip("总大小超过上限"); continue; }
     let data;
-    try {
-      // maxOutputLength：声明的 rawSize 不可信，解压时再卡一道
-      data = method === 0 ? comp : zlib.inflateRawSync(comp, { maxOutputLength: lim.maxFileBytes });
-    } catch (e) { skip("解压失败"); continue; }
-    if (data.length > lim.maxFileBytes) { skip("文件过大"); continue; }
+    try { data = readZipEntry(buf, entry, lim.maxFileBytes); } catch (e) { skip(e.message); continue; }
     if (looksBinary(data)) { skip("非文本文件"); continue; }
     totalBytes += data.length;
-    files.push({ path: name, content: data.toString("utf8").replace(/^﻿/, "") });
+    files.push({ path: name, content: data.toString("utf8").replace(/^\uFEFF/, "") });
   }
   return { files, skipped };
 }
 
-module.exports = { extractTextFiles, DEFAULT_LIMITS };
+module.exports = { extractTextFiles, listZipEntries, readZipEntry, DEFAULT_LIMITS };

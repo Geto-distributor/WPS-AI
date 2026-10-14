@@ -114,6 +114,10 @@
       const fp = tool && tool.args && tool.args.path;
       return i18nText("技能文件") + (fp ? "：" + fp : "");
     }
+    if (n === "read_reference_doc") {
+      const fp = tool && tool.args && tool.args.path;
+      return i18nText("读取参考文档") + (fp ? "：" + String(fp).split(/[\\/]/).pop() : "");
+    }
     if (n === "save_skill") {
       const sk = tool && tool.args && tool.args.name;
       return i18nText("保存技能") + (sk ? "：" + sk : "");

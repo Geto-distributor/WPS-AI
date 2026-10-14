@@ -140,6 +140,7 @@
 
     "js/token-usage.js",
     "js/skills.js",         // 技能（内置 + 用户导入，按需拼到 system prompt）
+    "js/ref-docs.js",       // 参考文档：已打开文档登记 + 委托代读 + 磁盘读取（每个组件的后台页都跑）
     "js/updater.js",        // 热更新（拉 manifest / 下载 zip / 解压覆盖）
     "js/cache.js",          // 缓存管理：扫 localStorage + proxy 侧目录大小，可选择性清
     "js/image-error-classifier.js", // 生图错误归因分类器（纯逻辑，无 DOM 依赖）
@@ -158,6 +159,7 @@
     "js/mcp-client.js",       // MCP Client：连接外部 MCP 服务，把其工具注册进 registry
     "js/tools/common.js",
     "js/tools/todos.js",
+    "js/tools/refs.js",
     "js/tools/spreadsheet.js",
     "js/tools/writer.js",
     "js/tools/deck-staging.js",

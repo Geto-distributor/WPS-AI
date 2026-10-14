@@ -431,7 +431,7 @@
       // 生图独立进度面板
       "imageGenPanel", "imageGenStatus", "imageGenPrompt", "imageGenCloseBtn",
       // 附件
-      "chatAttachBtn", "chatAttachFile", "chatAttachments", "chatAttachActiveBtn",
+      "chatAttachBtn", "chatAttachFile", "chatAttachments", "chatRefDocs", "chatRefDocsBtn", "chatAttachActiveBtn",
       // 修订模式（仅 WPS 文字）
       "reviseModeBar", "reviseModeToggle", "reviseModeActions", "reviseAcceptAllBtn", "reviseRejectAllBtn",
       // 技能沉淀提示（多轮 + 有实际操作后）
@@ -4289,6 +4289,206 @@
       try { entries.push({ path, content: await f.text() }); } catch (e) { preSkipped.push({ path, reason: "读取失败" }); }
     }
     importSkillPackage(entries, "", preSkipped);
+  }
+
+  // ---------------- 参考文档 ----------------
+  // 用户为本对话添加的背景资料 / 清单（磁盘文件路径），AI 用 list_reference_docs / read_reference_doc 读。
+  // 读取路由（WPS 实时 vs 磁盘）在 js/ref-docs.js；这里只管面板上的入口和 chip 条。
+  const REF_KIND_ICON = { word: "W", excel: "S", ppt: "P", pdf: "PDF", text: "T" };
+  const LEGACY_REF_RE = /\.(doc|wps|wpt|dot|rtf|xls|et|ett|ppt|dps|dpt|pps)$/i;
+  let _refDocsRenderSeq = 0;
+  let _refDocsLastKey = "";
+
+  async function renderRefDocs() {
+    const R = global.WpsAiRefDocs;
+    const host = els.chatRefDocs;
+    if (!R || !host) return;
+    const refs = R.list();
+    const seq = ++_refDocsRenderSeq;
+    if (!refs.length) { host.classList.add("hidden"); host.innerHTML = ""; _refDocsLastKey = ""; return; }
+    const open = await R.listOpenDocs();
+    if (seq !== _refDocsRenderSeq) return; // 期间又触发了一次渲染，以后到的为准
+    const openByPath = new Map((open.docs || []).map((d) => [R.normPath(d.path), d]));
+    const items = refs.map((r) => {
+      const o = openByPath.get(R.normPath(r.path));
+      const live = !!(o && o.host !== "pdf" && open.online?.[o.host]);
+      let tag = live ? i18nT("WPS 实时") : i18nT("磁盘");
+      let tagClass = live ? "live" : "";
+      let tip = live ? i18nT("已在 WPS 打开：AI 通过 WPS 读取，包含未保存的修改") : i18nT("AI 读取磁盘上保存的版本");
+      if (!live && LEGACY_REF_RE.test(r.path)) {
+        tag = i18nT("需在 WPS 打开");
+        tagClass = "warn";
+        tip = i18nT("老格式文件无法从磁盘解析，点文件名在 WPS 打开后即可读取");
+      } else if (o && o.saved === false && !live) {
+        tagClass = "warn";
+        tip = i18nT("WPS 里有未保存的修改，AI 读到的是上次保存的版本");
+      }
+      return { r, tag, tagClass, tip };
+    });
+    // 内容没变就不重画，避免定时刷新时打断鼠标悬停
+    const key = JSON.stringify(items.map((i) => [i.r.path, i.tag, i.tagClass]));
+    if (key === _refDocsLastKey && !host.classList.contains("hidden")) return;
+    _refDocsLastKey = key;
+    host.innerHTML = `<span class="chat-ref-docs-label">${escapeHtml(i18nT("参考文档"))}</span>` + items.map((it, i) => `
+      <span class="chat-ref-chip" title="${escapeAttr(it.r.path + "\n" + it.tip)}">
+        <span class="chat-ref-chip-tag">${escapeHtml(REF_KIND_ICON[it.r.kind] || "T")}</span>
+        <button type="button" class="chat-ref-chip-name" data-ref-open="${i}">${escapeHtml(it.r.name)}</button>
+        <span class="chat-ref-chip-tag ${it.tagClass}">${escapeHtml(it.tag)}</span>
+        <button type="button" class="chat-ref-chip-remove" data-ref-remove="${i}" aria-label="${escapeAttr(i18nT("移除"))}" title="${escapeAttr(i18nT("移除"))}">×</button>
+      </span>`).join("");
+    host.classList.remove("hidden");
+    host.querySelectorAll("[data-ref-open]").forEach((btn) => btn.addEventListener("click", () => {
+      const it = items[Number(btn.dataset.refOpen)];
+      if (it) openRefDocsInWps([it.r.path]);
+    }));
+    host.querySelectorAll("[data-ref-remove]").forEach((btn) => btn.addEventListener("click", () => {
+      const it = items[Number(btn.dataset.refRemove)];
+      if (it) R.remove(it.r.path);
+    }));
+  }
+
+  async function openRefDocsInWps(paths) {
+    if (!paths?.length) return;
+    try {
+      const results = await global.WpsAiRefDocs.openInWps(paths);
+      const failed = results.filter((r) => !r.ok);
+      if (failed.length) showMessage(i18nT("有 {n} 个文件没能在 WPS 打开：{err}", { n: failed.length, err: failed[0].error || "" }), "error");
+    } catch (e) {
+      showMessage(i18nT("在 WPS 打开失败：{err}", { err: e?.message || e }), "error");
+    }
+    // 打开后对应组件的插件几秒内会登记它，到时 chip 自动变成「WPS 实时」
+    [3000, 7000].forEach((ms) => setTimeout(() => { _refDocsLastKey = ""; renderRefDocs(); }, ms));
+  }
+
+  // 从电脑选文件 → 加入参考文档 → 全部在 WPS 打开（读取优先走 WPS，打不开也能读磁盘）
+  async function pickRefDocsFromDisk() {
+    const R = global.WpsAiRefDocs;
+    let paths = [];
+    try {
+      paths = await R.pick();
+    } catch (e) {
+      showMessage(i18nT("打开文件选择框失败：{err}", { err: e?.message || e }), "error");
+      return;
+    }
+    if (!paths.length) return;
+    const added = R.add(paths);
+    if (!added.length) { showMessage(i18nT("这些文件已经在参考文档里了"), "info"); return; }
+    showMessage(i18nT("已添加 {n} 份参考文档，正在 WPS 中打开…", { n: added.length }), "success");
+    await openRefDocsInWps(added.map((r) => r.path));
+  }
+
+  let _refDocsMenu = null;
+  function closeRefDocsMenu() {
+    if (!_refDocsMenu) return;
+    _refDocsMenu.remove();
+    _refDocsMenu = null;
+    document.removeEventListener("click", onRefDocsMenuOutside, true);
+    document.removeEventListener("keydown", onRefDocsMenuKey);
+  }
+  function onRefDocsMenuOutside(ev) {
+    if (_refDocsMenu && !_refDocsMenu.contains(ev.target) && !els.chatRefDocsBtn?.contains(ev.target)) closeRefDocsMenu();
+  }
+  function onRefDocsMenuKey(ev) { if (ev.key === "Escape") closeRefDocsMenu(); }
+  function placeRefDocsMenu(menu) {
+    const rect = els.chatRefDocsBtn.getBoundingClientRect();
+    menu.style.left = `${Math.max(4, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 4))}px`;
+    menu.style.bottom = `${Math.max(4, window.innerHeight - rect.top + 4)}px`;
+  }
+  function showRefDocsMenu() {
+    if (_refDocsMenu) { closeRefDocsMenu(); return; }
+    const menu = document.createElement("div");
+    menu.className = "ref-docs-menu";
+    menu.setAttribute("role", "menu");
+    menu.innerHTML = `
+      <button type="button" class="ref-docs-menu-item" data-ref-act="disk" role="menuitem">
+        <span>${escapeHtml(i18nT("从电脑选择文件…"))}</span><small>${escapeHtml(i18nT("可多选；选完自动在 WPS 中打开"))}</small>
+      </button>
+      <button type="button" class="ref-docs-menu-item" data-ref-act="open" role="menuitem">
+        <span>${escapeHtml(i18nT("从 WPS 已打开的文档中选…"))}</span><small>${escapeHtml(i18nT("直接读取实时内容，含未保存的修改"))}</small>
+      </button>`;
+    menu.addEventListener("click", (ev) => {
+      const act = ev.target?.closest?.("[data-ref-act]")?.dataset?.refAct;
+      if (act === "disk") { closeRefDocsMenu(); pickRefDocsFromDisk(); }
+      if (act === "open") showOpenDocsChooser(menu);
+    });
+    document.body.appendChild(menu);
+    placeRefDocsMenu(menu);
+    _refDocsMenu = menu;
+    setTimeout(() => {
+      document.addEventListener("click", onRefDocsMenuOutside, true);
+      document.addEventListener("keydown", onRefDocsMenuKey);
+    }, 0);
+  }
+
+  // 菜单里展开「WPS 已打开的文档」勾选列表（跨文字 / 表格 / 演示 / PDF，靠各组件插件登记）
+  async function showOpenDocsChooser(menu) {
+    const R = global.WpsAiRefDocs;
+    menu.innerHTML = `<div class="ref-docs-menu-title">${escapeHtml(i18nT("WPS 已打开的文档"))}</div><div class="ref-docs-empty">${escapeHtml(i18nT("读取中…"))}</div>`;
+    placeRefDocsMenu(menu);
+    const open = await R.listOpenDocs();
+    if (_refDocsMenu !== menu) return;
+    const added = new Set(R.list().map((r) => R.normPath(r.path)));
+    const docs = (open.docs || []).filter((d) => d.path && !d.active && !added.has(R.normPath(d.path)));
+    const COMPONENT = { wps: i18nT("文字"), et: i18nT("表格"), wpp: i18nT("演示"), pdf: "PDF" };
+    const body = docs.length
+      ? `<div class="ref-docs-open-list">${docs.map((d, i) => `
+          <label class="ref-docs-open-item" title="${escapeAttr(d.path)}">
+            <input type="checkbox" data-open-idx="${i}" checked />
+            <span>${escapeHtml(d.name || R.baseName(d.path))}</span>
+            <small>${escapeHtml(COMPONENT[d.host] || d.host)}${d.saved === false ? " · " + escapeHtml(i18nT("未保存")) : ""}</small>
+          </label>`).join("")}</div>
+        <div class="ref-docs-menu-actions">
+          <button type="button" class="ghost-btn" data-ref-act2="cancel">${escapeHtml(i18nT("取消"))}</button>
+          <button type="button" class="primary-btn" data-ref-act2="add">${escapeHtml(i18nT("添加"))}</button>
+        </div>`
+      : `<div class="ref-docs-empty">${escapeHtml(open.ok === false
+        ? i18nT("暂时拿不到已打开文档列表（{err}）", { err: open.error || "" })
+        : i18nT("没有找到其它已打开的文档。表格 / 演示 / PDF 里的文档需要对应组件已加载灵犀插件才能列出来。"))}</div>`;
+    menu.innerHTML = `<div class="ref-docs-menu-title">${escapeHtml(i18nT("WPS 已打开的文档"))}</div>` + body;
+    placeRefDocsMenu(menu);
+    menu.querySelector('[data-ref-act2="cancel"]')?.addEventListener("click", closeRefDocsMenu);
+    menu.querySelector('[data-ref-act2="add"]')?.addEventListener("click", () => {
+      const picked = Array.from(menu.querySelectorAll("[data-open-idx]:checked")).map((cb) => docs[Number(cb.dataset.openIdx)]?.path).filter(Boolean);
+      closeRefDocsMenu();
+      const n = R.add(picked).length;
+      if (n) showMessage(i18nT("已添加 {n} 份参考文档", { n }), "success");
+    });
+  }
+
+  function setupRefDocs() {
+    const R = global.WpsAiRefDocs;
+    if (!R || !els.chatRefDocsBtn) return;
+    els.chatRefDocsBtn.addEventListener("click", (ev) => { ev.stopPropagation(); showRefDocsMenu(); });
+    R.onChange(() => { _refDocsLastKey = ""; renderRefDocs(); });
+    // 切换对话、其它组件开关文档都会改变显示：低频轮询一下（只在有参考文档时才去问代理）
+    let lastConv = "";
+    setInterval(() => {
+      const conv = global.WpsAiConversations?.getCurrent?.()?.id || "";
+      if (conv !== lastConv) { lastConv = conv; _refDocsLastKey = ""; }
+      if (R.list().length || !els.chatRefDocs.classList.contains("hidden")) renderRefDocs();
+    }, 4000);
+    renderRefDocs();
+  }
+
+  // 参考文档的 system prompt 段：有添加的就列出来并给读取规则；没有也提一句能读 WPS 里其它打开的文档
+  function buildRefDocsPromptBlock() {
+    const R = global.WpsAiRefDocs;
+    if (!R) return "";
+    const refs = R.list();
+    const KIND = { word: "Word", excel: "Excel", ppt: "PPT", pdf: "PDF", text: "文本" };
+    if (!refs.length) {
+      return "\n--- 参考文档 ---\n用户提到「另一个文件 / 那份表格 / 资料」时，可以用 list_reference_docs 查看 WPS 里其它已打开的文档，再用 read_reference_doc 读取。";
+    }
+    return [
+      "\n--- 参考文档 ---",
+      "用户为本次对话添加了以下参考文档（背景资料、清单等）。它们只用来参考，不是你要修改的当前文档：",
+      refs.map((r) => `- ${r.name}（${KIND[r.kind] || "文件"}）：${r.path}`).join("\n"),
+      "使用规则：",
+      "- 评审、核对、对照、引用资料时，先用 read_reference_doc 读取相关参考文档，再下结论；不要凭文件名猜内容。",
+      "- 内容长时先看返回的 sections，只读需要的部分（用 section 跳转），或用 nextOffset 接着读；Excel 每行开头是行号。",
+      "- 给出的意见要注明依据出自哪份参考文档的哪一节 / 哪一行。",
+      "- 参考文档只读；修改、批注只针对当前文档。"
+    ].join("\n");
   }
 
   // 拼成 system prompt block (async, 因为 contentPath 形式的内置 skill 要 fetch 文件)
@@ -8841,7 +9041,9 @@
     let pendingResolver = null;
 
     return async function approveTool(call) {
-      if (call?.name === "todo_replace_all" || call?.name === "todo_patch") {
+      // 只读、不改文档的工具不用确认：任务清单、参考文档的查看与读取
+      if (call?.name === "todo_replace_all" || call?.name === "todo_patch"
+        || call?.name === "list_reference_docs" || call?.name === "read_reference_doc") {
         return { approved: true };
       }
       // 外部 MCP 工具：属于被标记 trusted 的服务则跳过确认（类比 todo 白名单）
@@ -9356,6 +9558,7 @@
         "工具失败时分析原因，必要时换实现，不要重复同一种失败调用。",
         "副作用确认：打印（*_print）、另存为（*_save_as）、导出PDF（*_export_pdf）会真实操作打印机或往磁盘写文件，属于不可无声撤销的动作——执行前先跟用户确认意图和目标路径，不要擅自打印、覆盖已有文件或另存到不确定的位置。",
         skillsBlock,
+        buildRefDocsPromptBlock(),
         // 用户配置的提示词放最后，覆盖力度更强
         userSystemPrompt ? "\n--- 用户偏好（优先级高于上述默认规则）---\n" + userSystemPrompt : ""
       ].filter(Boolean).join("\n");
@@ -14890,6 +15093,7 @@
   }
 
   function setupChatPanelUx() {
+    try { setupRefDocs(); } catch (e) { console.warn("[ref-docs] 初始化失败", e); }
     if (!els.chatStream) return;
     pinChatSessionStats();
     // 跳到最新：滚动时判断是否偏离底部；点击滚到底部

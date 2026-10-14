@@ -826,6 +826,9 @@
           <div class="chat-progress-bar"><div class="chat-progress-bar-inner"></div></div>
         </div>
 
+        <!-- 参考文档 chip 条：本对话添加的背景资料 / 清单等。点文件名在 WPS 打开，点 × 移除 -->
+        <div id="chatRefDocs" class="chat-ref-docs hidden"></div>
+
         <!-- 待发送的附件 chip 条（图片缩略图 + 文件图标），点 × 删除 -->
         <div id="chatAttachments" class="chat-attachments hidden"></div>
 
@@ -886,6 +889,14 @@
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </button>
+            <button id="chatRefDocsBtn" class="chat-toolbar-btn" type="button" title="添加参考文档：背景资料、材料清单等，AI 会结合它们处理当前文档" aria-label="添加参考文档" aria-haspopup="menu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                <line x1="9" y1="7" x2="16" y2="7"/>
+                <line x1="9" y1="11" x2="14" y2="11"/>
               </svg>
             </button>
             <button id="chatAttachActiveBtn" class="chat-toolbar-btn hidden" type="button" title="附加当前打开的 PDF" aria-label="附加当前 PDF">

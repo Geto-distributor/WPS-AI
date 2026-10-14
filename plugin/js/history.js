@@ -386,6 +386,8 @@
     wps_remove_paragraph: "删除段落",
     // 通用
     use_skill: "调用技能",
+    list_reference_docs: "查看参考文档",
+    read_reference_doc: "读取参考文档",
     read_skill_file: "读取技能参考文件",
     save_skill: "保存 / 优化技能"
   };

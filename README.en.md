@@ -98,6 +98,13 @@ Not supported: WebOffice, mobile WPS, lower-versioned desktop clients — JSAPI 
 - Change Log tab: grouped by file, expand to see args / before/after snapshots / errors
 - Config import/export (API Key encrypted + version compat)
 
+### Reference documents
+
+- Add reference documents (background material, item lists, etc.) in the AI pane; the AI reads them on demand while working on the current document — e.g. reviewing a contract against supporting material
+- Add them by choosing files from your computer (multiple selection; they open in WPS automatically) or by ticking documents already open in WPS
+- Reading picks a route automatically: if the document is open in WPS, the add-in in its component (Writer / Spreadsheet / Presentation) reads the live content, including unsaved changes; otherwise the local service parses the file on disk (.docx / .xlsx / .pptx / .pdf / text)
+- Legacy formats (.doc / .xls / .ppt / WPS formats) can only be read after opening them in WPS
+
 ### Writer / Spreadsheet / Presentation / PDF
 
 | Host | At a glance |
