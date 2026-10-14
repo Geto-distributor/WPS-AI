@@ -14846,7 +14846,46 @@
     probe("wps.EtApplication()", () => (typeof w?.EtApplication === "function" ? w.EtApplication() : null));
     probe("wps.WppApplication()", () => (typeof w?.WppApplication === "function" ? w.WppApplication() : null));
     probe("wps.PdfApplication()", () => (typeof w?.PdfApplication === "function" ? w.PdfApplication() : null));
-    try { out.wpsKeys = w ? Object.keys(w).filter((k) => /Application|App$/i.test(k)) : []; } catch (e) {}
+    // wps 对象上到底挂了些什么（名字 + 类型），以及 Application 上有没有其它可能通向别的组件的入口（只看有没有，不调用）
+    try { out.wpsMembers = w ? Object.keys(w).map((k) => `${k}:${typeof w[k]}`) : []; } catch (e) { out.wpsMembers = "报错: " + (e?.message || e); }
+    try {
+      const app = global.Application || (typeof w?.WpsApplication === "function" ? w.WpsApplication() : null);
+      out.appEntryPoints = {};
+      ["GetApplicationEx", "GetObject", "CreateObject", "OAAssist", "Workbooks", "Presentations", "Windows", "ActiveWindow", "Run"].forEach((k) => {
+        try { out.appEntryPoints[k] = typeof app[k]; } catch (e) { out.appEntryPoints[k] = "报错"; }
+      });
+      try { out.windowsCount = Number(app.Windows.Count); } catch (e) {}
+    } catch (e) {}
+    // wps.GetApplicationEx：名字像是"取别的应用对象"，但参数未知 —— 把函数签名打出来，再挨个试常见的取值。
+    // 只调用它本身并读返回对象的集合，不做任何写操作。
+    if (typeof w?.GetApplicationEx === "function") {
+      const ex = { length: w.GetApplicationEx.length };
+      try { ex.source = String(w.GetApplicationEx).slice(0, 300); } catch (e) {}
+      const describe = (app) => {
+        if (app == null) return "空";
+        if (typeof app !== "object" && typeof app !== "function") return `${typeof app}: ${String(app).slice(0, 80)}`;
+        const info = {};
+        [["Documents", "文字"], ["Workbooks", "表格"], ["Presentations", "演示"]].forEach(([prop, zh]) => {
+          try { const c = app[prop]; if (c) info[zh] = names(c); } catch (e) { info[zh] = "报错: " + (e?.message || e); }
+        });
+        try { if (app.Name) info.Name = String(app.Name); } catch (e) {}
+        return Object.keys(info).length ? info : "有对象，但没有文档集合";
+      };
+      const tries = [
+        ["()", []], ["('et')", ["et"]], ["('wps')", ["wps"]], ["('wpp')", ["wpp"]], ["('pdf')", ["pdf"]],
+        ["('ET')", ["ET"]], ["('ket')", ["ket"]], ["('kwpp')", ["kwpp"]],
+        ["('ket.Application')", ["ket.Application"]], ["('ET.Application')", ["ET.Application"]],
+        ["('Excel.Application')", ["Excel.Application"]], ["('kwpp.Application')", ["kwpp.Application"]],
+        ["(0)", [0]], ["(1)", [1]], ["(2)", [2]], ["(3)", [3]]
+      ];
+      ex.calls = {};
+      tries.forEach(([label, args]) => {
+        try { ex.calls[label] = describe(w.GetApplicationEx.apply(w, args)); } catch (e) { ex.calls[label] = "报错: " + (e?.message || e); }
+      });
+      out.GetApplicationEx = ex;
+    } else {
+      out.GetApplicationEx = "没有这个函数";
+    }
     return "```json\n" + JSON.stringify(out, null, 2) + "\n```";
   }
 
