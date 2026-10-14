@@ -11,7 +11,7 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
 // 假 WPS 应用对象：集合用 Count + Item(i)（1 起），和 JSAPI 一致
 const coll = (items) => ({ Count: items.length, Item: (i) => items[i - 1] });
 
-function load({ host = "wps", app = {}, routes = {}, conversationId = "c1", pathname = "/taskpane.html" } = {}) {
+function load({ host = "wps", app = {}, routes = {}, conversationId = "c1", pathname = "/taskpane.html", extra = {} } = {}) {
   const mem = new Map();
   const store = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) };
   const calls = [];
@@ -28,11 +28,12 @@ function load({ host = "wps", app = {}, routes = {}, conversationId = "c1", path
   const window = {
     WpsAiStore: store,
     WpsAiRuntime: { proxyBase: () => "http://127.0.0.1:3890" },
-    WpsAiConversations: { getCurrent: () => ({ id: conversationId }) },
+    WpsAiConversations: { getCurrent: () => (typeof conversationId === "function" ? conversationId() : conversationId) ? { id: typeof conversationId === "function" ? conversationId() : conversationId } : null },
     WpsAiDocument: { getApplication: async () => app, getHostInfo: async () => ({ host }) },
     WpsAiToolRegistry: null,
     location: { search: "?mode=settings", pathname } // 弹窗页：不启动登记 / 轮询循环，测试只测函数
   };
+  Object.assign(window, extra);
   const run = (file) => vm.runInNewContext(read(file), { window, fetch: fetchImpl, console, setTimeout, clearTimeout, setInterval, clearInterval, URL });
   run("js/ref-docs.js");
   // 工具注册表 + 参考文档工具
@@ -183,4 +184,58 @@ test("在 WPS 打开后切回原文档：等新文件出现在已打开列表里
   await new Promise((r) => setTimeout(r, 4500));
   assert.strictEqual(activations.length, 2, "切两次");
   assert.ok(activations[0] - t0 >= 1500 + 600, `第一次切回要在文件登记之后（实际 ${activations[0] - t0}ms）`);
+});
+
+test("还没发消息（没有对话）时添加的参考文档，发第一条消息建立对话后自动并过去", () => {
+  let conv = null;
+  const { R, store } = load({ conversationId: () => conv });
+  R.add(["C:\\a\\清单.xlsx", "D:\\b\\资料.pdf"]);
+  assert.deepStrictEqual(Object.keys(JSON.parse(store.getItem("lingxi_ref_docs_v1"))), ["default"]);
+  conv = "c-new"; // 发第一条消息时新建了对话
+  assert.deepStrictEqual(plain(R.list().map((r) => r.name)), ["清单.xlsx", "资料.pdf"], "AI 这一轮能看到它们");
+  assert.deepStrictEqual(Object.keys(JSON.parse(store.getItem("lingxi_ref_docs_v1"))), ["c-new"], "default 并入后清掉，不会再并给下一个对话");
+  conv = "c-other";
+  assert.deepStrictEqual(plain(R.list()), []);
+});
+
+test("PDF 组件代读它当前显示的那份 PDF，按页分节；不是当前那份就交回磁盘读取", async () => {
+  const pdfPath = "C:\\a\\资料.pdf";
+  const WpsAiHostPdf = {
+    getActivePdfPath: async () => pdfPath,
+    readDocumentText: async () => "【第 1 页】\n第一页内容\n\n【第 2 页】\n第二页"
+  };
+  const { R } = load({ host: "pdf", pathname: "/pdf/index.html", extra: { WpsAiHostPdf } });
+  const r = await R._internal.readOpenDocument("c:/A/资料.pdf");
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.kind, "pdf");
+  assert.strictEqual(r.text, "## 第 1 页\n第一页内容\n\n## 第 2 页\n第二页");
+  assert.strictEqual((await R._internal.readOpenDocument("C:\\a\\别的.pdf")).notOpen, true);
+});
+
+test("跨类型打开后：接口切换之后再请后台服务「再打开一次」原文档；原文档有未保存修改 / 同类型时不做", async () => {
+  const run = async ({ saved, files }) => {
+    const focusCalls = [];
+    const back = { FullName: "C:\\a\\合同.docx", Saved: saved, Activate() {} };
+    const routes = {
+      open: (b) => ({ ok: true, results: b.paths.map((p) => ({ path: p, ok: true })) }),
+      "open-docs": () => ({ ok: true, online: {}, docs: files.map((p) => ({ host: "et", name: p, path: p })) }),
+      focus: (b) => { focusCalls.push(b.path); return { ok: true, result: { ok: true, path: b.path } }; }
+    };
+    const { R } = load({ host: "wps", app: { ActiveDocument: back }, routes, pathname: "/wps/taskpane.html" });
+    await R.openInWps(files, { waitMs: 3000 });
+    await new Promise((r) => setTimeout(r, 5000));
+    return { focusCalls, trace: plain(R.lastOpenTrace()) };
+  };
+  const cross = await run({ saved: true, files: ["C:\\a\\清单.xlsx"] });
+  assert.deepStrictEqual(cross.focusCalls, ["C:\\a\\合同.docx"]);
+  assert.strictEqual(cross.trace.relaunch.ok, true);
+  assert.ok(cross.trace.seenAllAfterMs > 0);
+
+  const dirty = await run({ saved: false, files: ["C:\\a\\清单.xlsx"] });
+  assert.deepStrictEqual(dirty.focusCalls, []);
+  assert.match(dirty.trace.relaunch, /未保存/);
+
+  const same = await run({ saved: true, files: ["C:\\a\\附件.docx"] });
+  assert.deepStrictEqual(same.focusCalls, []);
+  assert.match(same.trace.relaunch, /同类型/);
 });

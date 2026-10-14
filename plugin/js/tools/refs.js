@@ -22,7 +22,7 @@
       const openByPath = new Map((open.docs || []).map((d) => [R.normPath(d.path), d]));
       const added = R.list().map((r) => {
         const o = openByPath.get(R.normPath(r.path));
-        const viaWps = !!(o && o.host !== "pdf" && open.online?.[o.host]);
+        const viaWps = !!(o && open.online?.[o.host]);
         return { name: r.name, path: r.path, kind: r.kind, readVia: STATUS_LABEL[viaWps ? "wps" : "disk"], unsavedChanges: o ? o.saved === false : undefined };
       });
       const addedSet = new Set(added.map((a) => R.normPath(a.path)));

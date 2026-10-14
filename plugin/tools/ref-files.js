@@ -113,36 +113,47 @@ function windowsWpsLauncher(filePath) {
 
 // 让 WPS 打开文件。尽量不抢前台（macOS 用 open -g），但多数情况下 WPS 仍会切到新打开的文档 ——
 // 切回原文档由插件侧负责（它知道原文档是哪个）。返回每个文件的结果。
-function openInWps(paths) {
-  return (Array.isArray(paths) ? paths : []).map((p) => {
-    const filePath = String(p || "");
-    try {
-      if (!filePath || !fs.statSync(filePath).isFile()) return { path: filePath, ok: false, error: "文件不存在" };
-    } catch (e) { return { path: filePath, ok: false, error: "文件不存在" }; }
-    try {
-      if (process.platform === "darwin") {
-        let r = run("/usr/bin/open", ["-g", "-a", "wpsoffice", filePath], 10000);
-        if (r.status !== 0) r = run("/usr/bin/open", ["-g", filePath], 10000);
-        return r.status === 0 ? { path: filePath, ok: true, via: "open" } : { path: filePath, ok: false, error: String(r.stderr || r.status).slice(0, 200) };
-      }
-      if (process.platform === "win32") {
-        const exe = windowsWpsLauncher(filePath);
-        const child = exe
-          ? spawn(exe, [filePath], { detached: true, stdio: "ignore", windowsHide: false })
-          : spawn("cmd.exe", ["/c", "start", "", filePath], { detached: true, stdio: "ignore", windowsHide: true });
-        child.unref();
-        return { path: filePath, ok: true, via: exe ? path.basename(exe) : "default-app" };
-      }
-      const ext = path.extname(filePath).toLowerCase();
-      const cmd = /^\.(xlsx?|et|csv)$/.test(ext) ? "et" : /^\.(pptx?|dps)$/.test(ext) ? "wpp" : ext === ".pdf" ? "xdg-open" : "wps";
-      const child = spawn(cmd, [filePath], { detached: true, stdio: "ignore" });
-      child.on("error", () => { try { spawn("xdg-open", [filePath], { detached: true, stdio: "ignore" }).unref(); } catch (e) {} });
-      child.unref();
-      return { path: filePath, ok: true, via: cmd };
-    } catch (e) {
-      return { path: filePath, ok: false, error: e && e.message ? e.message : String(e) };
+// 用 WPS 的启动程序打开一个文件。foreground=false 时 macOS 用 open -g 尽量不抢前台（Windows / Linux 上无效）
+function launchInWps(filePath, { foreground = false } = {}) {
+  try {
+    if (!filePath || !fs.statSync(filePath).isFile()) return { path: filePath, ok: false, error: "文件不存在" };
+  } catch (e) { return { path: filePath, ok: false, error: "文件不存在" }; }
+  try {
+    if (process.platform === "darwin") {
+      const bg = foreground ? [] : ["-g"];
+      let r = run("/usr/bin/open", [...bg, "-a", "wpsoffice", filePath], 10000);
+      if (r.status !== 0) r = run("/usr/bin/open", [...bg, filePath], 10000);
+      return r.status === 0 ? { path: filePath, ok: true, via: "open" } : { path: filePath, ok: false, error: String(r.stderr || r.status).slice(0, 200) };
     }
-  });
+    if (process.platform === "win32") {
+      const exe = windowsWpsLauncher(filePath);
+      const child = exe
+        ? spawn(exe, [filePath], { detached: true, stdio: "ignore", windowsHide: false })
+        : spawn("cmd.exe", ["/c", "start", "", filePath], { detached: true, stdio: "ignore", windowsHide: true });
+      child.unref();
+      return { path: filePath, ok: true, via: exe ? path.basename(exe) : "default-app" };
+    }
+    const ext = path.extname(filePath).toLowerCase();
+    const cmd = /^\.(xlsx?|et|csv)$/.test(ext) ? "et" : /^\.(pptx?|dps)$/.test(ext) ? "wpp" : ext === ".pdf" ? "xdg-open" : "wps";
+    const child = spawn(cmd, [filePath], { detached: true, stdio: "ignore" });
+    child.on("error", () => { try { spawn("xdg-open", [filePath], { detached: true, stdio: "ignore" }).unref(); } catch (e) {} });
+    child.unref();
+    return { path: filePath, ok: true, via: cmd };
+  } catch (e) {
+    return { path: filePath, ok: false, error: e && e.message ? e.message : String(e) };
+  }
 }
 
-module.exports = { pickFiles, openInWps, DOC_FILTER_EXTS };
+// 让 WPS 打开文件。多数情况下 WPS 会切到新打开的文档 —— 切回原文档见 focusInWps
+function openInWps(paths) {
+  return (Array.isArray(paths) ? paths : []).map((p) => launchInWps(String(p || "")));
+}
+
+// 切回一份「已经在 WPS 里打开」的文档：用同一个启动程序再打开它一次。
+// 跨组件打开文件后，从文字组件里调 Activate 切不回来（WPS / 系统不让后台组件抢前台），
+// 而经启动程序打开是 WPS 自己认可的切换方式；文档已开着时 WPS 一般直接切到它已有的标签页。
+function focusInWps(filePath) {
+  return launchInWps(String(filePath || ""), { foreground: true });
+}
+
+module.exports = { pickFiles, openInWps, focusInWps, DOC_FILTER_EXTS };

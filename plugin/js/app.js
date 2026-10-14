@@ -4311,7 +4311,7 @@
     const openByPath = new Map((open.docs || []).map((d) => [R.normPath(d.path), d]));
     const items = refs.map((r) => {
       const o = openByPath.get(R.normPath(r.path));
-      const live = !!(o && o.host !== "pdf" && open.online?.[o.host]);
+      const live = !!(o && open.online?.[o.host]);
       let tag = live ? i18nT("WPS 实时") : i18nT("磁盘");
       let tagClass = live ? "live" : "";
       let tip = live ? i18nT("已在 WPS 打开：AI 通过 WPS 读取，包含未保存的修改") : i18nT("AI 读取磁盘上保存的版本");
@@ -14477,7 +14477,8 @@
         const get = (route) => fetch(base + route, { cache: "no-store" }).then((r) => r.json()).catch((e) => ({ error: String(e?.message || e) }));
         const [instances, openDocs] = await Promise.all([get("/refs/instances"), get("/refs/open-docs")]);
         const self = { url: location.pathname, component: global.WpsAiRefDocs?._internal?.componentFromUrl?.() || "", instanceId: global.WpsAiRefDocs?._internal?.instanceId || "" };
-        appendChatMsg("assistant", "```json\n" + JSON.stringify({ self, instances: instances.instances || instances, openDocs }, null, 2) + "\n```");
+        const lastOpen = global.WpsAiRefDocs?.lastOpenTrace?.() || null;
+        appendChatMsg("assistant", "```json\n" + JSON.stringify({ self, lastOpen, instances: instances.instances || instances, openDocs }, null, 2) + "\n```");
         return;
       }
       await runChatTurn(text);

@@ -53,13 +53,27 @@
     try { global.WpsAiStore?.setItem?.(STORE_KEY, JSON.stringify(all)); } catch (e) {}
     listeners.forEach((cb) => { try { cb(); } catch (e) {} });
   }
+  // 面板刚打开、还没发过消息时没有对话，此时添加的参考文档先存在 "default" 下；
+  // 发第一条消息会新建对话（换了 id），这里把 default 里的并进当前对话，否则 AI 那一轮就看不到它们
+  function adoptPending(all, id) {
+    if (id === "default" || !Array.isArray(all.default) || !all.default.length) return false;
+    const cur = Array.isArray(all[id]) ? all[id] : [];
+    all.default.forEach((r) => { if (!cur.some((x) => normPath(x.path) === normPath(r.path))) cur.push(r); });
+    all[id] = cur;
+    delete all.default;
+    return true;
+  }
   function list() {
-    const items = readAll()[conversationId()];
+    const all = readAll();
+    const id = conversationId();
+    if (adoptPending(all, id)) { try { global.WpsAiStore?.setItem?.(STORE_KEY, JSON.stringify(all)); } catch (e) {} }
+    const items = all[id];
     return Array.isArray(items) ? items.slice() : [];
   }
   function add(paths) {
     const all = readAll();
     const id = conversationId();
+    adoptPending(all, id);
     const cur = Array.isArray(all[id]) ? all[id] : [];
     const added = [];
     (paths || []).forEach((p) => {
@@ -271,8 +285,27 @@
     return { text, sections: index };
   }
 
+  // PDF 组件只能读它当前打开的那一份（没有文档集合）。页文本用宿主桥现成的读取，按页分节
+  async function readActivePdf(filePath) {
+    const P = global.WpsAiHostPdf;
+    if (!P?.getActivePdfPath || !P?.readDocumentText) return { ok: false, error: "PDF 组件不支持读取" };
+    const active = await P.getActivePdfPath();
+    if (!active || normPath(active) !== normPath(filePath)) {
+      return { ok: false, notOpen: true, error: "这份 PDF 不是 PDF 组件当前显示的文档" };
+    }
+    const raw = String(await P.readDocumentText({}) || "");
+    const sections = [];
+    raw.split(/(?=【第 \d+ 页】)/).forEach((chunk) => {
+      const m = chunk.match(/^【第 (\d+) 页】\n?([\s\S]*)$/);
+      if (m) sections.push({ title: `第 ${m[1]} 页`, text: m[2].trim() || "（本页没有文字）" });
+    });
+    if (!sections.length) sections.push({ title: "第 1 页", text: raw.trim() || "（没有文字，可能是扫描件）" });
+    return Object.assign({ ok: true, source: "wps", kind: "pdf", saved: true }, assemble(sections));
+  }
+
   async function readOpenDocument(filePath) {
     const host = await currentHost();
+    if (host === "pdf") return readActivePdf(filePath);
     const app = await getApp();
     const want = normPath(filePath);
     let target = null;
@@ -304,7 +337,7 @@
     const open = await listOpenDocs();
     const hit = findIn(open.docs, path);
     let delegateError = "";
-    if (hit && hit.host !== "pdf" && open.online?.[hit.host]) {
+    if (hit && open.online?.[hit.host]) {
       try {
         const r = await call("delegate", { host: hit.host, path, offset, maxChars, section });
         if (r && r.text != null) return Object.assign(r, { name: baseName(path), path });
@@ -317,7 +350,7 @@
         hit && hit.saved === false ? "这份文档在 WPS 里有未保存的修改，磁盘上读到的是上次保存的版本" : ""].filter(Boolean);
       return Object.assign(r, { name: baseName(path), path, note: notes.join("；") || undefined });
     } catch (e) {
-      if (!hit && /老格式/.test(e.message)) throw new Error(e.message + "（可以在参考文档列表里点它在 WPS 中打开，打开后会自动改用 WPS 读取）");
+      if (!hit && /老格式|PDF 磁盘解析/.test(e.message)) throw new Error(e.message + "（可以在参考文档列表里点它在 WPS 中打开，打开后会自动改用 WPS 读取）");
       throw e;
     }
   }
@@ -359,11 +392,16 @@
 
   // 让 WPS 打开文件，然后尽量切回原来的文档（跨组件打开时 WPS 通常会跳到新文档）
   // 尽量把原文档切回前台。WPS 各版本接口不一，能调的都调一遍
+  // 最近一次「打开并切回」的过程记录，/probe-open-files 会显示，用来判断切不回来是没等到文件、还是切换本身没生效
+  let lastOpenTrace = null;
   function activateBack(app, doc) {
-    try { doc.Activate(); } catch (e) {}
-    try { doc.ActiveWindow && doc.ActiveWindow.Activate(); } catch (e) {}
-    try { doc.Windows && doc.Windows.Item(1) && doc.Windows.Item(1).Activate(); } catch (e) {}
-    try { typeof app.Activate === "function" && app.Activate(); } catch (e) {}
+    const tried = {};
+    const attempt = (name, fn) => { try { fn(); tried[name] = "ok"; } catch (e) { tried[name] = "报错: " + (e?.message || e); } };
+    attempt("Document.Activate", () => doc.Activate());
+    attempt("ActiveWindow.Activate", () => doc.ActiveWindow.Activate());
+    attempt("Windows(1).Activate", () => doc.Windows.Item(1).Activate());
+    attempt("Application.Activate", () => app.Activate());
+    return tried;
   }
 
   // 让 WPS 打开文件，然后切回原来的文档。跨组件打开时 WPS 会跳到新文档，而且对应组件第一次启动要好几秒，
@@ -378,18 +416,38 @@
       // PDF 组件只登记当前那一份，老格式 / 文本也不一定登记得上：只等 Word / Excel / PPT 新格式
       const waitFor = opened.filter((p) => /\.(docx|docm|xlsx|xlsm|pptx|pptm)$/.test(p));
       (async () => {
+        const t0 = Date.now();
+        const trace = { at: new Date().toISOString(), back: docPath(back), waitFor, seenAllAfterMs: null, timedOut: false, visibilityBefore: global.document?.visibilityState };
+        lastOpenTrace = trace;
         const deadline = Date.now() + waitMs;
         while (waitFor.length && Date.now() < deadline) {
           await new Promise((res) => setTimeout(res, 800));
           const open = await listOpenDocs();
           const seen = new Set((open.docs || []).map((d) => normPath(d.path)));
-          if (waitFor.every((p) => seen.has(p))) break;
+          if (waitFor.every((p) => seen.has(p))) { trace.seenAllAfterMs = Date.now() - t0; break; }
         }
+        if (waitFor.length && trace.seenAllAfterMs == null) trace.timedOut = true;
         // 打开好了再缓一下（WPS 渲染完才算切换完成），切两次保险
         await new Promise((res) => setTimeout(res, waitFor.length ? 600 : 2500));
-        activateBack(app, back);
+        trace.firstAttempt = activateBack(app, back);
         await new Promise((res) => setTimeout(res, 900));
-        activateBack(app, back);
+        trace.secondAttempt = activateBack(app, back);
+        // 从文字组件里调接口切换，跨组件时实测不生效；再让后台服务用 WPS 启动程序「再打开一次」原文档，
+        // WPS 一般直接切到它已有的标签页。原文档有未保存修改时不做：不确定 WPS 会不会提示「恢复到已保存版本」
+        const backPath = docPath(back);
+        let backSaved = true;
+        try { backSaved = back.Saved !== false; } catch (e) {}
+        const crossComponent = opened.some((p) => kindOf(p) !== (host === "wps" ? "word" : host === "et" ? "excel" : host === "wpp" ? "ppt" : host));
+        if (!crossComponent) trace.relaunch = "跳过：都是同类型文档";
+        else if (!backPath || !/[\\/]/.test(backPath)) trace.relaunch = "跳过：原文档还没保存过，没有文件路径";
+        else if (!backSaved) trace.relaunch = "跳过：原文档有未保存的修改";
+        else {
+          await new Promise((res) => setTimeout(res, 300));
+          try { trace.relaunch = (await call("focus", { path: backPath })).result; } catch (e) { trace.relaunch = "失败: " + e.message; }
+        }
+        await new Promise((res) => setTimeout(res, 1500));
+        trace.visibilityAfter = global.document?.visibilityState;
+        try { trace.activeAfter = docPath(activeFor(await getApp(), host)); } catch (e) {}
       })();
     }
     return r.results || [];
@@ -419,7 +477,7 @@
     while (polling) {
       if (Date.now() < backoffUntil) { await new Promise((r) => setTimeout(r, 5000)); continue; }
       const host = await currentHost();
-      if (host === "unknown" || host === "pdf") { await new Promise((r) => setTimeout(r, 10000)); continue; }
+      if (host === "unknown") { await new Promise((r) => setTimeout(r, 10000)); continue; }
       let job = null;
       try {
         job = (await call(`poll?host=${encodeURIComponent(host)}&instance=${encodeURIComponent(instanceId)}`)).call;
@@ -447,6 +505,7 @@
     list, add, remove, onChange,
     pick, openInWps, listOpenDocs, read,
     kindOf, baseName, normPath,
+    lastOpenTrace: () => lastOpenTrace,
     _internal: { collectOpenDocs, readOpenDocument, readWorkbook, readWordDoc, readPresentation, assemble, instanceId, componentFromUrl, pickViaWps }
   };
 })(window);

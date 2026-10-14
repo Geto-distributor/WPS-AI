@@ -153,3 +153,25 @@ test("ref-relay：登记汇总去重、过期清理；委托代读按组件分�
   assert.deepStrictEqual(relay.listOpenDocs(), [], "超过 staleMs 没再登记的实例被清掉");
   assert.strictEqual(relay.workerOnline("et"), false);
 });
+
+test("随包的 pdfjs（tools/vendor）不靠 node_modules 就能解析中文 PDF；各平台打包都不会排除它", async () => {
+  const vendor = path.join(__dirname, "..", "tools", "vendor", "pdfjs-dist");
+  const pdfjs = require(path.join(vendor, "legacy", "build", "pdf.js"));
+  const data = new Uint8Array(fs.readFileSync(path.join(__dirname, "fixtures", "ref-doc-cn.pdf")));
+  const doc = await pdfjs.getDocument({ data, useSystemFonts: true, isEvalSupported: false, cMapUrl: path.join(vendor, "cmaps") + path.sep, cMapPacked: true }).promise;
+  try {
+    const text = (await (await doc.getPage(1)).getTextContent()).items.map((i) => i.str).join("");
+    assert.match(text, /合同评审测试/);
+    assert.match(text, /付款条件：预付款/);
+  } finally { await doc.destroy(); }
+
+  const root = path.join(__dirname, "..", "..");
+  const variants = fs.readFileSync(path.join(root, "plugin", "tools", "build-variants.js"), "utf8");
+  const skip = (variants.match(/const SKIP = new Set\(\[([\s\S]*?)\]\)/) || [])[1] || "";
+  assert.doesNotMatch(skip, /"vendor"|"tools"/, "build-variants 不能跳过 tools/vendor");
+  const iss = fs.readFileSync(path.join(root, "installer", "lingxi-ai.iss"), "utf8");
+  assert.doesNotMatch((iss.match(/Excludes: "([^"]*)"/) || [])[1] || "", /vendor/, "Windows 安装包不能排除 vendor");
+  for (const f of ["installer-mac/build-dmg.sh", "installer-linux/build.sh"]) {
+    assert.doesNotMatch(fs.readFileSync(path.join(root, f), "utf8"), /--exclude='[^']*vendor/, `${f} 不能排除 vendor`);
+  }
+});

@@ -1439,9 +1439,27 @@ function fetchModelsCatalog(url, cachePath, clientRes, serveCache, redirectsLeft
 // 非 PDF 用户不付出启动成本）。仅用 getTextContent，不需要 canvas 渲染（canvas 的告警可忽略）。
 // 按 path+mtime 缓存，避免同文件重复解析。
 let _pdfjsLib = null;
+// pdfjs-dist 随包放在 tools/vendor/pdfjs-dist（安装包不带 node_modules）；开发环境里 npm 装的那份作兜底
+const PDFJS_VENDOR_DIR = path.join(__dirname, "vendor", "pdfjs-dist");
 function getPdfjs() {
-  if (!_pdfjsLib) _pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
+  if (!_pdfjsLib) {
+    try {
+      _pdfjsLib = require(path.join(PDFJS_VENDOR_DIR, "legacy", "build", "pdf.js"));
+    } catch (vendorError) {
+      try {
+        _pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
+      } catch (e) {
+        if (e && e.code === "MODULE_NOT_FOUND") throw new Error("PDF 磁盘解析组件（pdfjs-dist）不在当前安装包里");
+        throw e;
+      }
+    }
+  }
   return _pdfjsLib;
+}
+// 中文等 CID 字体的 PDF 需要 CMap 才能把字形还原成文字；随包带了压缩 CMap
+function pdfjsCMapOptions() {
+  const dir = path.join(PDFJS_VENDOR_DIR, "cmaps");
+  return fs.existsSync(dir) ? { cMapUrl: dir + path.sep, cMapPacked: true } : {};
 }
 const _pdfExtractCache = new Map(); // normKey -> { mtimeMs, result }
 const PDF_EXTRACT_MAX_BYTES = 150 * 1024 * 1024; // 防 OOM：超大 PDF 直接拒绝
@@ -1455,7 +1473,7 @@ async function extractPdfText(filePath) {
   if (cached && cached.mtimeMs === st.mtimeMs) return cached.result;
   const pdfjs = getPdfjs();
   const data = new Uint8Array(fs.readFileSync(filePath));
-  const doc = await pdfjs.getDocument({ data, useSystemFonts: true, isEvalSupported: false }).promise;
+  const doc = await pdfjs.getDocument(Object.assign({ data, useSystemFonts: true, isEvalSupported: false }, pdfjsCMapOptions())).promise;
   const pageCount = doc.numPages;
   const pages = [];
   let charCount = 0;
@@ -2077,6 +2095,7 @@ const server = http.createServer(async (req, res) => {
       const json = JSON.parse((await readBody(req)).toString("utf8") || "{}");
       if (pathname === "/refs/pick") { sendJson(res, 200, { ok: true, paths: await refFiles.pickFiles() }); return; }
       if (pathname === "/refs/open") { sendJson(res, 200, { ok: true, results: refFiles.openInWps(json.paths) }); return; }
+      if (pathname === "/refs/focus") { sendJson(res, 200, Object.assign({ ok: true }, { result: refFiles.focusInWps(json.path) })); return; }
       if (pathname === "/refs/presence") { refRelay.report(json); sendJson(res, 200, { ok: true }); return; }
       if (pathname === "/refs/result") { sendJson(res, 200, { ok: true, accepted: refRelay.resolveCall(String(json.callId || ""), json.result) }); return; }
       if (pathname === "/refs/read") {
@@ -3301,7 +3320,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
       error: {
-        message: `未知路由: ${pathname}。若刚更新过插件，请重启本地代理（重跑 npm run dev:* 或重装/重启后台服务）。常用：/forward/<encoded-base>/*, /upload-image, /save-local-image-as, /image-edit, /toapis-upload-image, /asset/js/vendor/*, /fetch-remote-image, /fetch-web, /image-search, /active-pdf-path, /load-local-file, /doc-snapshot, /doc-restore, /skill/unzip, /refs/pick, /refs/open, /refs/read, /refs/open-docs, /refs/delegate, /skills/list, /skills/put, /skills/write, /skills/delete-file, /skills/rename, /skills/delete, /kv/all, /kv/batch, /kv/merge-list, /kv/merge-object, /kv/stats, /kv/clear`
+        message: `未知路由: ${pathname}。若刚更新过插件，请重启本地代理（重跑 npm run dev:* 或重装/重启后台服务）。常用：/forward/<encoded-base>/*, /upload-image, /save-local-image-as, /image-edit, /toapis-upload-image, /asset/js/vendor/*, /fetch-remote-image, /fetch-web, /image-search, /active-pdf-path, /load-local-file, /doc-snapshot, /doc-restore, /skill/unzip, /refs/pick, /refs/open, /refs/focus, /refs/read, /refs/open-docs, /refs/delegate, /skills/list, /skills/put, /skills/write, /skills/delete-file, /skills/rename, /skills/delete, /kv/all, /kv/batch, /kv/merge-list, /kv/merge-object, /kv/stats, /kv/clear`
       }
     }));
     return;
