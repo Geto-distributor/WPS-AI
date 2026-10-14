@@ -25,7 +25,7 @@ function createRefRelay(opts = {}) {
 
   function fresh(inst) { return now() - Math.max(inst.at || 0, inst.polledAt || 0) < staleMs; }
 
-  function report({ instanceId, host, docs }) {
+  function report({ instanceId, host, docs, page, url }) {
     if (!instanceId || !host) throw new Error("instanceId / host 必填");
     const list = (Array.isArray(docs) ? docs : []).slice(0, 200).map((d) => ({
       name: String(d && d.name || ""),
@@ -34,7 +34,7 @@ function createRefRelay(opts = {}) {
       active: !!(d && d.active)
     })).filter((d) => d.name || d.path);
     const prev = instances.get(instanceId);
-    instances.set(instanceId, { host: String(host), docs: list, at: now(), polledAt: prev ? prev.polledAt : 0 });
+    instances.set(instanceId, { host: String(host), docs: list, at: now(), polledAt: prev ? prev.polledAt : 0, page: String(page || ""), url: String(url || "") });
   }
 
   // 全部组件的已打开文档，按路径去重（同一组件的面板页和后台页可能各报一份）
@@ -117,12 +117,30 @@ function createRefRelay(opts = {}) {
     return true;
   }
 
+  // 诊断用：每个登记过的插件实例（哪个组件、哪类页面、多久前报到 / 取活、开着几份文档）
+  function listInstances() {
+    const out = [];
+    instances.forEach((inst, id) => {
+      out.push({
+        instanceId: id,
+        host: inst.host,
+        page: inst.page || "",
+        url: inst.url || "",
+        reportedSecondsAgo: inst.at ? Math.round((now() - inst.at) / 1000) : null,
+        polledSecondsAgo: inst.polledAt ? Math.round((now() - inst.polledAt) / 1000) : null,
+        fresh: fresh(inst),
+        docs: inst.docs.map((d) => d.name || d.path)
+      });
+    });
+    return out;
+  }
+
   function findOpenDoc(filePath) {
     const want = normPath(filePath);
     return listOpenDocs().find((d) => d.path && normPath(d.path) === want) || null;
   }
 
-  return { report, listOpenDocs, workerOnline, request, poll, resolveCall, findOpenDoc };
+  return { report, listOpenDocs, workerOnline, request, poll, resolveCall, findOpenDoc, listInstances };
 }
 
 module.exports = { createRefRelay, normPath };

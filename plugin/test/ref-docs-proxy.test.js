@@ -145,6 +145,10 @@ test("ref-relay：登记汇总去重、过期清理；委托代读按组件分�
   assert.strictEqual(await relay.poll("wpp", "p1"), null, "没活时长轮询到点返回 null");
   await assert.rejects(relay.request("pdf", { op: "read" }), /委托读取超时/);
 
+  relay.report({ instanceId: "e2", host: "et", docs: [], page: "background", url: "/et/index.html" });
+  const inst = relay.listInstances().find((i) => i.instanceId === "e2");
+  assert.deepStrictEqual([inst.host, inst.page, inst.url, inst.fresh], ["et", "background", "/et/index.html", true]);
+
   t += 6000;
   assert.deepStrictEqual(relay.listOpenDocs(), [], "超过 staleMs 没再登记的实例被清掉");
   assert.strictEqual(relay.workerOnline("et"), false);

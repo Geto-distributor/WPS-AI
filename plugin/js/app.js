@@ -4365,16 +4365,18 @@
     const R = global.WpsAiRefDocs;
     let paths = [];
     try {
-      paths = await R.pick();
+      paths = (await R.pick()).paths;
     } catch (e) {
       showMessage(i18nT("打开文件选择框失败：{err}", { err: e?.message || e }), "error");
       return;
     }
     if (!paths.length) return;
     const added = R.add(paths);
-    if (!added.length) { showMessage(i18nT("这些文件已经在参考文档里了"), "info"); return; }
-    showMessage(i18nT("已添加 {n} 份参考文档，正在 WPS 中打开…", { n: added.length }), "success");
-    await openRefDocsInWps(added.map((r) => r.path));
+    // 选中的文件一律在 WPS 打开（包括之前已添加过、后来被关掉的），新添加的才计数提示
+    showMessage(added.length
+      ? i18nT("已添加 {n} 份参考文档，正在 WPS 中打开…", { n: added.length })
+      : i18nT("这些文件已经在参考文档里了，正在 WPS 中重新打开…"), added.length ? "success" : "info");
+    await openRefDocsInWps(paths);
   }
 
   let _refDocsMenu = null;
@@ -4430,6 +4432,10 @@
     const added = new Set(R.list().map((r) => R.normPath(r.path)));
     const docs = (open.docs || []).filter((d) => d.path && !d.active && !added.has(R.normPath(d.path)));
     const COMPONENT = { wps: i18nT("文字"), et: i18nT("表格"), wpp: i18nT("演示"), pdf: "PDF" };
+    // 哪些组件的插件报过到：别的组件没报到，它们开着的文档就列不出来
+    const reported = new Set((open.docs || []).map((d) => d.host));
+    Object.keys(open.online || {}).forEach((h) => { if (open.online[h]) reported.add(h); });
+    const componentLine = ["wps", "et", "wpp", "pdf"].map((h) => `${COMPONENT[h]}${reported.has(h) ? "✓" : "✗"}`).join("  ");
     const body = docs.length
       ? `<div class="ref-docs-open-list">${docs.map((d, i) => `
           <label class="ref-docs-open-item" title="${escapeAttr(d.path)}">
@@ -4444,7 +4450,8 @@
       : `<div class="ref-docs-empty">${escapeHtml(open.ok === false
         ? i18nT("暂时拿不到已打开文档列表（{err}）", { err: open.error || "" })
         : i18nT("没有找到其它已打开的文档。表格 / 演示 / PDF 里的文档需要对应组件已加载灵犀插件才能列出来。"))}</div>`;
-    menu.innerHTML = `<div class="ref-docs-menu-title">${escapeHtml(i18nT("WPS 已打开的文档"))}</div>` + body;
+    menu.innerHTML = `<div class="ref-docs-menu-title">${escapeHtml(i18nT("WPS 已打开的文档"))}</div>` + body
+      + `<div class="ref-docs-empty" title="${escapeAttr(i18nT("✓ 表示该组件的灵犀插件已报到；✗ 的组件里开着的文档列不出来，可在那个组件里打开一次灵犀面板后再试"))}">${escapeHtml(i18nT("已连接的组件："))}${escapeHtml(componentLine)}</div>`;
     placeRefDocsMenu(menu);
     menu.querySelector('[data-ref-act2="cancel"]')?.addEventListener("click", closeRefDocsMenu);
     menu.querySelector('[data-ref-act2="add"]')?.addEventListener("click", () => {
@@ -14464,6 +14471,15 @@
       els.chatInput.value = "";
       // 诊断指令：不发给模型，直接在对话里显示结果（正式包里打不开开发者工具时用）
       if (text === "/probe-hosts") { appendChatMsg("user", text); appendChatMsg("assistant", probeHostApplications()); return; }
+      if (text === "/probe-open-files") {
+        appendChatMsg("user", text);
+        const base = global.WpsAiRuntime?.proxyBase?.() || "http://127.0.0.1:3890";
+        const get = (route) => fetch(base + route, { cache: "no-store" }).then((r) => r.json()).catch((e) => ({ error: String(e?.message || e) }));
+        const [instances, openDocs] = await Promise.all([get("/refs/instances"), get("/refs/open-docs")]);
+        const self = { url: location.pathname, component: global.WpsAiRefDocs?._internal?.componentFromUrl?.() || "", instanceId: global.WpsAiRefDocs?._internal?.instanceId || "" };
+        appendChatMsg("assistant", "```json\n" + JSON.stringify({ self, instances: instances.instances || instances, openDocs }, null, 2) + "\n```");
+        return;
+      }
       await runChatTurn(text);
     });
     installChatInputContextMenu(els.chatInput);

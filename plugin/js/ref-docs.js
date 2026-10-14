@@ -86,9 +86,18 @@
   async function getApp() {
     try { return await global.WpsAiDocument?.getApplication?.(); } catch (e) { return null; }
   }
+  // 本页属于哪个组件。优先看页面地址：安装后四份插件分别挂在 /wps/ /et/ /wpp/ /pdf/ 下（publish.xml 按组件注册），
+  // 这比探测应用对象可靠 —— 整合模式下同一进程里可能探到别的组件的应用对象，把表格页误认成文字页。
+  function componentFromUrl() {
+    const m = String(global.location?.pathname || "").match(/\/(wps|et|wpp|pdf)\//i);
+    return m ? m[1].toLowerCase() : "";
+  }
   async function currentHost() {
+    const fromUrl = componentFromUrl();
+    if (fromUrl) return fromUrl;
     try { return (await global.WpsAiDocument?.getHostInfo?.())?.host || "unknown"; } catch (e) { return "unknown"; }
   }
+  const pageKind = /(?:^|\/)taskpane\.html/i.test(String(global.location?.pathname || "")) ? "pane" : "background";
   function each(coll, fn) {
     const n = Number(coll?.Count) || 0;
     for (let i = 1; i <= n; i += 1) {
@@ -308,9 +317,38 @@
   }
 
   // ===== 选文件 / 在 WPS 打开 =====
+  // 选文件：先用 WPS 自己的文件对话框（它归 WPS 窗口所有，一定显示在前面）；
+  // WPS 接口不支持时再请代理弹系统对话框。返回 { paths, via }，用户取消时 paths 为空。
+  function pickViaWps(app) {
+    const MSO_FILE_DIALOG_FILE_PICKER = 3;
+    if (!app || typeof app.FileDialog !== "function" && typeof app.FileDialog !== "object") return null;
+    let fd = null;
+    try { fd = app.FileDialog(MSO_FILE_DIALOG_FILE_PICKER); } catch (e) { fd = null; }
+    if (!fd || (typeof fd.Show !== "function" && typeof fd.Show !== "object")) return null;
+    try { fd.AllowMultiSelect = true; } catch (e) {}
+    try { fd.Title = "选择参考文档（可多选）"; } catch (e) {}
+    const shown = fd.Show();
+    // Show() 返回 -1 = 点了确定，0 = 取消
+    if (shown !== -1 && shown !== true) return [];
+    const out = [];
+    try { each(fd.SelectedItems, (item) => { out.push(String(item)); }); } catch (e) {}
+    if (!out.length) {
+      try { const n = Number(fd.SelectedItems.Count) || 0; for (let i = 1; i <= n; i += 1) out.push(String(fd.SelectedItems(i))); } catch (e) {}
+    }
+    return out.filter(Boolean);
+  }
   async function pick() {
-    const r = await call("pick", {}, "POST");
-    return Array.isArray(r.paths) ? r.paths : [];
+    let wpsError = "";
+    try {
+      const viaWps = pickViaWps(await getApp());
+      if (Array.isArray(viaWps)) return { paths: viaWps, via: "wps" };
+    } catch (e) { wpsError = e?.message || String(e); }
+    try {
+      const r = await call("pick", {}, "POST");
+      return { paths: Array.isArray(r.paths) ? r.paths : [], via: "system" };
+    } catch (e) {
+      throw new Error((wpsError ? `WPS 文件对话框不可用（${wpsError}）；` : "") + e.message);
+    }
   }
 
   // 让 WPS 打开文件，然后尽量切回原来的文档（跨组件打开时 WPS 通常会跳到新文档）
@@ -339,7 +377,7 @@
     try {
       const { host, docs } = await collectOpenDocs();
       if (host === "unknown") return;
-      await call("presence", { instanceId, host, docs });
+      await call("presence", { instanceId, host, docs, page: pageKind, url: String(global.location?.pathname || "") });
     } catch (e) {
       // 老版本代理没有 /refs/*：一分钟后再试，别刷屏
       backoffUntil = Date.now() + (e.status === 404 ? 60000 : 10000);
@@ -380,6 +418,6 @@
     list, add, remove, onChange,
     pick, openInWps, listOpenDocs, read,
     kindOf, baseName, normPath,
-    _internal: { collectOpenDocs, readOpenDocument, readWorkbook, readWordDoc, readPresentation, assemble, instanceId }
+    _internal: { collectOpenDocs, readOpenDocument, readWorkbook, readWordDoc, readPresentation, assemble, instanceId, componentFromUrl, pickViaWps }
   };
 })(window);

@@ -58,11 +58,21 @@ async function pickWindows() {
   const script = [
     "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
     "Add-Type -AssemblyName System.Windows.Forms",
+    "Add-Type -AssemblyName System.Drawing",
     "$dialog = New-Object System.Windows.Forms.OpenFileDialog",
     "$dialog.Title = '选择参考文档（可多选）'",
     "$dialog.Multiselect = $true",
     `$dialog.Filter = '${filter}'`,
-    "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Write(($dialog.FileNames -join \"`n\")) }"
+    // 代理是隐藏启动的后台进程，没有前台窗口：对话框不挂一个置顶的属主窗口，会被 WPS 挡在后面看不见
+    "$owner = New-Object System.Windows.Forms.Form",
+    "$owner.TopMost = $true",
+    "$owner.ShowInTaskbar = $false",
+    "$owner.StartPosition = 'CenterScreen'",
+    "$owner.Size = New-Object System.Drawing.Size(1, 1)",
+    "$owner.Show()",
+    "$owner.Activate()",
+    "if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Write(($dialog.FileNames -join \"`n\")) }",
+    "$owner.Close()"
   ].join("; ");
   const r = await runAsync("powershell.exe", ["-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-Command", script], PICK_TIMEOUT_MS);
   if (r.error || r.status !== 0) throw new Error("打开文件选择框失败：" + String(r.stderr || (r.error && r.error.message) || r.status).slice(0, 200));

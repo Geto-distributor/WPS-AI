@@ -2061,6 +2061,10 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 200, { ok: true, docs: refRelay.listOpenDocs(), online });
         return;
       }
+      if (pathname === "/refs/instances" && method === "GET") {
+        sendJson(res, 200, { ok: true, instances: refRelay.listInstances() });
+        return;
+      }
       if (pathname === "/refs/poll" && method === "GET") {
         const host = String(parsedUrl.searchParams.get("host") || "");
         const instance = String(parsedUrl.searchParams.get("instance") || "");

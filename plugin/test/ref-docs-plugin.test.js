@@ -11,7 +11,7 @@ const plain = (v) => JSON.parse(JSON.stringify(v));
 // 假 WPS 应用对象：集合用 Count + Item(i)（1 起），和 JSAPI 一致
 const coll = (items) => ({ Count: items.length, Item: (i) => items[i - 1] });
 
-function load({ host = "wps", app = {}, routes = {}, conversationId = "c1" } = {}) {
+function load({ host = "wps", app = {}, routes = {}, conversationId = "c1", pathname = "/taskpane.html" } = {}) {
   const mem = new Map();
   const store = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) };
   const calls = [];
@@ -31,7 +31,7 @@ function load({ host = "wps", app = {}, routes = {}, conversationId = "c1" } = {
     WpsAiConversations: { getCurrent: () => ({ id: conversationId }) },
     WpsAiDocument: { getApplication: async () => app, getHostInfo: async () => ({ host }) },
     WpsAiToolRegistry: null,
-    location: { search: "?mode=settings" } // 弹窗页：不启动登记 / 轮询循环，测试只测函数
+    location: { search: "?mode=settings", pathname } // 弹窗页：不启动登记 / 轮询循环，测试只测函数
   };
   const run = (file) => vm.runInNewContext(read(file), { window, fetch: fetchImpl, console, setTimeout, clearTimeout, setInterval, clearInterval, URL });
   run("js/ref-docs.js");
@@ -138,4 +138,30 @@ test("AI 工具：只能读已添加或已打开的文档；列表区分已添�
   assert.strictEqual((await read({ path: "c:/a/清单.xlsx" })).readVia, "已在 WPS 打开（读实时内容）");
   await assert.rejects(read({ path: "C:\\Windows\\win.ini" }), /只能读取已添加的参考文档或 WPS 里已打开的文档/);
   await assert.rejects(read({}), /需要 path/);
+});
+
+test("组件以页面地址为准：/et/ 下的页面即使探测到文字应用对象，也按表格登记", async () => {
+  const app = { Workbooks: coll([{ Name: "清单.xlsx", FullName: "C:\\a\\清单.xlsx" }]), Documents: coll([{ Name: "合同.docx", FullName: "C:\\a\\合同.docx" }]) };
+  const et = load({ host: "wps", app, pathname: "/et/index.html" });
+  assert.strictEqual(et.R._internal.componentFromUrl(), "et");
+  assert.deepStrictEqual(plain(await et.R._internal.collectOpenDocs()).docs.map((d) => d.name), ["清单.xlsx"], "按表格读 Workbooks，不会误报文字文档");
+  const dev = load({ host: "wps", app, pathname: "/index.html" });
+  assert.strictEqual(dev.R._internal.componentFromUrl(), "", "开发模式地址里没有组件段时退回探测");
+  assert.deepStrictEqual(plain(await dev.R._internal.collectOpenDocs()).docs.map((d) => d.name), ["合同.docx"]);
+});
+
+test("选文件：WPS 文件对话框可用就用它（多选、取消、确定），不可用返回 null 交给系统对话框", () => {
+  const { R } = load();
+  const pickViaWps = R._internal.pickViaWps;
+  const fdFactory = (result, items) => {
+    const fd = { Show: () => result, SelectedItems: coll(items) };
+    return { FileDialog: (type) => { fd.type = type; return fd; }, fd };
+  };
+  const ok = fdFactory(-1, ["C:\\a\\清单.xlsx", "D:\\b\\资料.pdf"]);
+  assert.deepStrictEqual(plain(pickViaWps(ok)), ["C:\\a\\清单.xlsx", "D:\\b\\资料.pdf"]);
+  assert.strictEqual(ok.fd.type, 3, "用 msoFileDialogFilePicker，只选文件不打开");
+  assert.strictEqual(ok.fd.AllowMultiSelect, true);
+  assert.deepStrictEqual(plain(pickViaWps(fdFactory(0, ["x"]))), [], "取消返回空数组");
+  assert.strictEqual(pickViaWps({}), null, "没有 FileDialog 接口");
+  assert.strictEqual(pickViaWps(null), null);
 });
