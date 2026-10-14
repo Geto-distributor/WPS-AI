@@ -27,7 +27,7 @@
       });
       const addedSet = new Set(added.map((a) => R.normPath(a.path)));
       const otherOpenDocs = (open.docs || [])
-        .filter((d) => d.path && !addedSet.has(R.normPath(d.path)) && !d.active)
+        .filter((d) => d.path && !addedSet.has(R.normPath(d.path)) && !d.current)
         .map((d) => ({ name: d.name, path: d.path, component: d.host, unsavedChanges: d.saved === false }));
       return { added, otherOpenDocs, note: open.ok === false ? `暂时拿不到 WPS 已打开文档列表：${open.error}` : undefined };
     }

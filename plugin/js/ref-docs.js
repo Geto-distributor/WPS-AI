@@ -285,8 +285,14 @@
   }
 
   // ===== 读取（给 AI 工具用）：能委托就委托，否则磁盘 =====
+  // 每个组件都有自己的活动文档（表格组件里唯一开着的那个表格也是「活动」的），
+  // 所以「当前文档」只认本组件的活动文档，用 current 标出来，供选择框和 AI 工具排除
   async function listOpenDocs() {
-    try { return await call("open-docs"); } catch (e) { return { ok: false, docs: [], online: {}, error: e.message }; }
+    let r;
+    try { r = await call("open-docs"); } catch (e) { return { ok: false, docs: [], online: {}, error: e.message }; }
+    const host = await currentHost();
+    (r.docs || []).forEach((d) => { d.current = !!d.active && d.host === host; });
+    return r;
   }
   function findIn(docs, filePath) {
     const want = normPath(filePath);
@@ -352,16 +358,39 @@
   }
 
   // 让 WPS 打开文件，然后尽量切回原来的文档（跨组件打开时 WPS 通常会跳到新文档）
-  async function openInWps(paths, { returnFocus = true } = {}) {
+  // 尽量把原文档切回前台。WPS 各版本接口不一，能调的都调一遍
+  function activateBack(app, doc) {
+    try { doc.Activate(); } catch (e) {}
+    try { doc.ActiveWindow && doc.ActiveWindow.Activate(); } catch (e) {}
+    try { doc.Windows && doc.Windows.Item(1) && doc.Windows.Item(1).Activate(); } catch (e) {}
+    try { typeof app.Activate === "function" && app.Activate(); } catch (e) {}
+  }
+
+  // 让 WPS 打开文件，然后切回原来的文档。跨组件打开时 WPS 会跳到新文档，而且对应组件第一次启动要好几秒，
+  // 定时切回容易切早了又被抢走 —— 所以等新文档出现在已打开列表里（说明真的打开好了）再切，最多等 waitMs。
+  async function openInWps(paths, { returnFocus = true, waitMs = 25000 } = {}) {
     const app = await getApp();
     const host = await currentHost();
     const back = returnFocus ? activeFor(app, host) : null;
     const r = await call("open", { paths });
     if (back) {
-      [1500, 3500].forEach((ms) => setTimeout(() => {
-        try { back.Activate(); } catch (e) {}
-        try { back.ActiveWindow && back.ActiveWindow.Activate(); } catch (e) {}
-      }, ms));
+      const opened = (r.results || []).filter((x) => x.ok).map((x) => normPath(x.path));
+      // PDF 组件只登记当前那一份，老格式 / 文本也不一定登记得上：只等 Word / Excel / PPT 新格式
+      const waitFor = opened.filter((p) => /\.(docx|docm|xlsx|xlsm|pptx|pptm)$/.test(p));
+      (async () => {
+        const deadline = Date.now() + waitMs;
+        while (waitFor.length && Date.now() < deadline) {
+          await new Promise((res) => setTimeout(res, 800));
+          const open = await listOpenDocs();
+          const seen = new Set((open.docs || []).map((d) => normPath(d.path)));
+          if (waitFor.every((p) => seen.has(p))) break;
+        }
+        // 打开好了再缓一下（WPS 渲染完才算切换完成），切两次保险
+        await new Promise((res) => setTimeout(res, waitFor.length ? 600 : 2500));
+        activateBack(app, back);
+        await new Promise((res) => setTimeout(res, 900));
+        activateBack(app, back);
+      })();
     }
     return r.results || [];
   }

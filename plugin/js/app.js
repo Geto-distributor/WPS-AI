@@ -4430,7 +4430,7 @@
     const open = await R.listOpenDocs();
     if (_refDocsMenu !== menu) return;
     const added = new Set(R.list().map((r) => R.normPath(r.path)));
-    const docs = (open.docs || []).filter((d) => d.path && !d.active && !added.has(R.normPath(d.path)));
+    const docs = (open.docs || []).filter((d) => d.path && !d.current && !added.has(R.normPath(d.path)));
     const COMPONENT = { wps: i18nT("文字"), et: i18nT("表格"), wpp: i18nT("演示"), pdf: "PDF" };
     // 哪些组件的插件报过到：别的组件没报到，它们开着的文档就列不出来
     const reported = new Set((open.docs || []).map((d) => d.host));

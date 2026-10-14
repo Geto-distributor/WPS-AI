@@ -122,7 +122,8 @@ test("AI 工具：只能读已添加或已打开的文档；列表区分已添�
     "open-docs": () => ({ ok: true, online: { wps: true, et: true }, docs: [
       { host: "wps", name: "合同.docx", path: "C:\\a\\合同.docx", active: true },
       { host: "et", name: "清单.xlsx", path: "C:\\a\\清单.xlsx", saved: false },
-      { host: "pdf", name: "资料.pdf", path: "C:\\a\\资料.pdf" }
+      { host: "pdf", name: "资料.pdf", path: "C:\\a\\资料.pdf", active: true },
+      { host: "wpp", name: "汇报.pptx", path: "C:\\a\\汇报.pptx", active: true }
     ] }),
     delegate: () => ({ ok: true, source: "wps", text: "x", offset: 0, nextOffset: null, total: 1, sections: [] }),
     read: () => ({ ok: true, source: "disk", text: "y", offset: 0, nextOffset: null, total: 1, sections: [] })
@@ -131,7 +132,8 @@ test("AI 工具：只能读已添加或已打开的文档；列表区分已添�
   R.add(["C:\\a\\清单.xlsx", "D:\\背景\\说明.docx"]);
   const listed = await tools.get("list_reference_docs").handler({});
   assert.deepStrictEqual(plain(listed.added.map((a) => `${a.name}|${a.readVia}`)), ["清单.xlsx|已在 WPS 打开（读实时内容）", "说明.docx|读取磁盘文件"]);
-  assert.deepStrictEqual(plain(listed.otherOpenDocs.map((d) => d.name)), ["资料.pdf"], "当前文档和已添加的不再重复列出");
+  assert.deepStrictEqual(plain(listed.otherOpenDocs.map((d) => d.name)), ["资料.pdf", "汇报.pptx"],
+    "只排除本组件（文字）的活动文档；PDF / 演示组件里各自的活动文档照样列出来，已添加的也不重复列");
 
   const read = tools.get("read_reference_doc").handler;
   assert.strictEqual((await read({ path: "C:\\a\\资料.pdf" })).readVia, "读取磁盘文件", "PDF 一律读磁盘");
@@ -164,4 +166,21 @@ test("选文件：WPS 文件对话框可用就用它（多选、取消、确定�
   assert.deepStrictEqual(plain(pickViaWps(fdFactory(0, ["x"]))), [], "取消返回空数组");
   assert.strictEqual(pickViaWps({}), null, "没有 FileDialog 接口");
   assert.strictEqual(pickViaWps(null), null);
+});
+
+test("在 WPS 打开后切回原文档：等新文件出现在已打开列表里再切，不是固定延时", async () => {
+  const xlsx = "C:\\a\\清单.xlsx";
+  let registered = false;
+  const activations = [];
+  const back = { Activate: () => activations.push(Date.now()) };
+  const routes = {
+    open: (b) => { setTimeout(() => { registered = true; }, 1500); return { ok: true, results: b.paths.map((p) => ({ path: p, ok: true })) }; },
+    "open-docs": () => ({ ok: true, online: {}, docs: registered ? [{ host: "et", name: "清单.xlsx", path: xlsx }] : [] })
+  };
+  const { R } = load({ host: "wps", app: { ActiveDocument: back }, routes });
+  const t0 = Date.now();
+  await R.openInWps([xlsx], { waitMs: 8000 });
+  await new Promise((r) => setTimeout(r, 4500));
+  assert.strictEqual(activations.length, 2, "切两次");
+  assert.ok(activations[0] - t0 >= 1500 + 600, `第一次切回要在文件登记之后（实际 ${activations[0] - t0}ms）`);
 });
