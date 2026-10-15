@@ -2047,7 +2047,7 @@
     return { applied: true };
   }
 
-  // ---- 修订模式：AI 改动前后包一层，让 AI 的编辑记为原生修订 + 作者标为「灵犀AI」----
+  // ---- 修订模式：AI 改动前后包一层，让 AI 的编辑记为原生修订 + 作者标为「志特AI」----
   // 状态存模块内：beginRevise 记下当前 UserName，endRevise 还原，避免把用户自己的手改也记成 AI。
   let _reviseAuthorPrev = null;
   async function beginRevise(author) {
@@ -2057,7 +2057,7 @@
       const app = await getApp();
       if (app) {
         if (_reviseAuthorPrev == null) _reviseAuthorPrev = String(app.UserName == null ? "" : app.UserName);
-        app.UserName = String(author || "灵犀AI");
+        app.UserName = String(author || "志特AI");
       }
     } catch (e) {}
     return { applied: true };
@@ -2093,7 +2093,7 @@
     acceptRejectRevision,        // 逐条接受/拒绝修订
     addWatermark,                // 文字水印
     setView,                     // 视图缩放/定位
-    beginRevise,                 // 修订模式：AI 改动前打开修订 + 作者设为灵犀AI
+    beginRevise,                 // 修订模式：AI 改动前打开修订 + 作者设为志特AI
     endRevise,                   // 修订模式：AI 改动后还原作者
     findColoredText,             // 找红字/高亮/底纹（背景色）文本片段
     clearTextFormatting,         // 批量：统一黑字 + 去高亮 + 去底纹（一次调用整篇）

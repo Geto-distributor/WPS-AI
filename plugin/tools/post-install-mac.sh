@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 灵犀AI macOS 安装后脚本(用户上下文)
+# 志特AI macOS 安装后脚本(用户上下文)
 #
 # 由 installer-mac/scripts/postinstall (root 上下文) 通过 sudo -u 调起。
 # 也可以直接手跑做调试: bash post-install-mac.sh <INSTALL_DIR>

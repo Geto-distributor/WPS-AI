@@ -1,4 +1,4 @@
-<h1 align="center">灵犀AI · WPS Office 多宿主 AI 助手</h1>
+<h1 align="center">志特AI · WPS Office 多宿主 AI 助手</h1>
 
 <p align="center">
   一个 TaskPane 兼容 <b>WPS 文字 / 表格 / 演示 / PDF</b> 四端的 AI 助手，挂多家 AI（Codex / OpenAI / Anthropic / Gemini / Azure / OpenAI 兼容），AI 通过工具调用<b>直接读写文档</b>。
@@ -66,14 +66,14 @@ WPS 宿主（文字/表格/演示/PDF）
 
 ### 2. 安装
 
-- **Windows**：先临时关掉杀软实时防护 → 双击 setup.exe → 完全退出 WPS → 重开 WPS，ribbon 出现「灵犀AI」标签即成功
+- **Windows**：先临时关掉杀软实时防护 → 双击 setup.exe → 完全退出 WPS → 重开 WPS，ribbon 出现「志特AI」标签即成功
 - **macOS**：**右键 .pkg → 打开**（Gatekeeper 拦未签名包，双击会报错）→ 输系统密码 → 完全退出 WPS → 重开 WPS
 
 详细步骤（卸载 / 升级 / 故障排查 / 安装器构建）见 [INSTALL.md](INSTALL.md)。
 
 ### 3. 配置 AI 模型
 
-1. ribbon 点「打开灵犀AI」→ TaskPane 右侧弹出 → ⚙ 设置（独立弹窗）
+1. ribbon 点「打开志特AI」→ TaskPane 右侧弹出 → ⚙ 设置（独立弹窗）
 2. 「聊天模型」面板 → **+ 新增供应商** → 15 条预设里选一家（baseURL 已预填）
 3. 填 API Key、确认「默认模型」→ ⚡ 测试 → 勾上「启用」→ 关弹窗开聊
 
@@ -219,7 +219,7 @@ registry.registerTool({
 
 **加新 provider** —— 新建 `js/providers/<name>.js`，实现 `runWithTools` 等接口后 `WpsAiProviderRegistry.register("<type>", createFn)` 自注册，主链路零改动（详见 `gemini.js` / `openai-responses.js`）。
 
-**ribbon 只保留「打开灵犀AI」一个按钮**，由 `tools/gen-ribbon.js` 生成（`npm run gen-ribbon`）。`js/quick-actions.js` 是 TaskPane 内快捷指令的数据源，不再铺到 ribbon 上。
+**ribbon 只保留「打开志特AI」一个按钮**，由 `tools/gen-ribbon.js` 生成（`npm run gen-ribbon`）。`js/quick-actions.js` 是 TaskPane 内快捷指令的数据源，不再铺到 ribbon 上。
 
 **永久模式打包** —— `node tools/build-variants.js --out <dist 目录>`。
 
@@ -262,4 +262,4 @@ registry.registerTool({
 
 本项目基于 **[MIT License](LICENSE)** 开源 —— 可自由使用、修改、分发、商用，保留版权与许可声明即可。
 
-> 品牌名称「灵犀AI」、公众号二维码及截图等资产不在 MIT 授权范围内，仅用于标识本项目。
+> 品牌名称「志特AI」、公众号二维码及截图等资产不在 MIT 授权范围内，仅用于标识本项目。

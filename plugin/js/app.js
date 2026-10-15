@@ -1,5 +1,5 @@
 // ============================================================================
-// app.js —— WPS 灵犀 AI 主脚本
+// app.js —— WPS 志特 AI 主脚本
 // 大文件 (~15k 行)，按 // ===== 分节：
 //   1. Boot / mode 检测 / IPC 常量        (top)
 //   2. 预览日志 / 消息提示 / 文档锁定
@@ -2024,7 +2024,7 @@
     // 文档锁定：AI 工作期间禁止用户编辑文档
     if (isBusy) lockHostDocument();
     else unlockHostDocument();
-    // 修订模式（仅 WPS 文字）：AI 工作期间打开原生修订 + 把作者临时设为「灵犀AI」，结束后还原
+    // 修订模式（仅 WPS 文字）：AI 工作期间打开原生修订 + 把作者临时设为「志特AI」，结束后还原
     applyReviseTurn(isBusy);
     // 一轮结束后按当前修订条数刷新「接受全部 / 全部回撤」按钮显隐（有修订才显示）
     if (!isBusy) updateReviseActions();
@@ -2109,7 +2109,7 @@
     els.forceUnlockBtn.classList.toggle("hidden", !(locked && !reviseMode));
   }
 
-  // 修订模式：AI 工作期间(isBusy)包一层——打开原生修订 + 作者设为「灵犀AI」；结束还原作者。
+  // 修订模式：AI 工作期间(isBusy)包一层——打开原生修订 + 作者设为「志特AI」；结束还原作者。
   // 只在 WPS 文字 + 开关打开时生效；endRevise 没 begin 过时是 no-op，收尾无脑调即可。
   function applyReviseTurn(isBusy) {
     if ((currentHostInfo?.host || "") !== "wps") return;
@@ -2117,7 +2117,7 @@
     if (!w) return;
     if (isBusy) {
       if (currentSettings?.reviseMode && typeof w.beginRevise === "function") {
-        Promise.resolve(w.beginRevise("灵犀AI")).catch(() => {});
+        Promise.resolve(w.beginRevise("志特AI")).catch(() => {});
       }
     } else if (typeof w.endRevise === "function") {
       Promise.resolve(w.endRevise()).catch(() => {});
@@ -2135,7 +2135,7 @@
       try { await w.manageRevisions(on ? "enable_track" : "disable_track"); } catch (e) {}
     }
     showMessage(
-      on ? "已开启修订模式：AI 的改动会记为 Word 修订（作者「灵犀AI」），可逐条接受或全部回撤。" : "已关闭修订模式。",
+      on ? "已开启修订模式：AI 的改动会记为 Word 修订（作者「志特AI」），可逐条接受或全部回撤。" : "已关闭修订模式。",
       "info",
       { duration: 4000 }
     );
@@ -4449,9 +4449,9 @@
         </div>`
       : `<div class="ref-docs-empty">${escapeHtml(open.ok === false
         ? i18nT("暂时拿不到已打开文档列表（{err}）", { err: open.error || "" })
-        : i18nT("没有找到其它已打开的文档。表格 / 演示 / PDF 里的文档需要对应组件已加载灵犀插件才能列出来。"))}</div>`;
+        : i18nT("没有找到其它已打开的文档。表格 / 演示 / PDF 里的文档需要对应组件已加载志特插件才能列出来。"))}</div>`;
     menu.innerHTML = `<div class="ref-docs-menu-title">${escapeHtml(i18nT("WPS 已打开的文档"))}</div>` + body
-      + `<div class="ref-docs-empty" title="${escapeAttr(i18nT("✓ 表示该组件的灵犀插件已报到；✗ 的组件里开着的文档列不出来，可在那个组件里打开一次灵犀面板后再试"))}">${escapeHtml(i18nT("已连接的组件："))}${escapeHtml(componentLine)}</div>`;
+      + `<div class="ref-docs-empty" title="${escapeAttr(i18nT("✓ 表示该组件的志特插件已报到；✗ 的组件里开着的文档列不出来，可在那个组件里打开一次志特面板后再试"))}">${escapeHtml(i18nT("已连接的组件："))}${escapeHtml(componentLine)}</div>`;
     placeRefDocsMenu(menu);
     menu.querySelector('[data-ref-act2="cancel"]')?.addEventListener("click", closeRefDocsMenu);
     menu.querySelector('[data-ref-act2="add"]')?.addEventListener("click", () => {
@@ -4765,7 +4765,7 @@
       <details class="local-model-guide">
         <summary>本地模型选型建议（务必看一眼）</summary>
         <div class="local-model-guide-body">
-          <p class="muted" style="margin:6px 0 8px;">灵犀 AI 深度依赖<b>工具调用 (function calling)</b>来操作文档；图片识别 / 截图分析依赖<b>多模态 (vision)</b>。多数开源模型至少缺一项，挑错了"配上能聊天但用不了功能"。</p>
+          <p class="muted" style="margin:6px 0 8px;">志特 AI 深度依赖<b>工具调用 (function calling)</b>来操作文档；图片识别 / 截图分析依赖<b>多模态 (vision)</b>。多数开源模型至少缺一项，挑错了"配上能聊天但用不了功能"。</p>
 
           <p style="margin:8px 0 4px;"><b>✓ 推荐配置（工具调用稳定，部分带视觉）</b></p>
           <ul style="margin:2px 0 8px 18px; padding:0; line-height:1.6;">
@@ -7385,7 +7385,7 @@
       const resp = await fetch(base + "/export-doc", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ html, fileName: t("灵犀AI 排版导出") })
+        body: JSON.stringify({ html, fileName: t("志特AI 排版导出") })
       });
       const payload = await resp.json().catch(() => ({}));
       if (!resp.ok || !payload.ok) throw new Error(payload.error || `HTTP ${resp.status}`);
@@ -9448,7 +9448,7 @@
           layoutLine,
           sp.themeFile ? `  · 主题模板文件：${sp.themeFile}（每页生成完毕后调用 wpp_apply_theme(themePath=该路径) 套用）` : "",
           "",
-          "灵犀 PPT 设计宪法（每次配版前自检）：",
+          "志特 PPT 设计宪法（每次配版前自检）：",
           ...guidelines.map((g, i) => `  ${i + 1}. ${g}`),
           "",
           "实践：每次 wpp_add_slide 之后调一次 wpp_apply_style_preset 自动套用字体；如果有自定义文本框（wpp_add_text_box）也按上面的字体字号填；不确定时先调 wpp_get_style_preset 拿完整色板与签名元素再设计。"
@@ -10703,7 +10703,7 @@
         <div class="theme-card-thumb" style="background:${escapeAttr(s.backgroundColor || "#fff")}">
           <div class="theme-card-thumb-bar" style="background:${escapeAttr(s.primaryColor || "#000")}"></div>
           <div class="theme-card-thumb-title" style="color:${escapeAttr(s.titleColor || "#000")};font-family:${escapeAttr(s.titleFont || "sans-serif")}">Aa</div>
-          <div class="theme-card-thumb-body" style="color:${escapeAttr(s.bodyColor || "#666")};font-family:${escapeAttr(s.bodyFont || "sans-serif")}">Lingxi</div>
+          <div class="theme-card-thumb-body" style="color:${escapeAttr(s.bodyColor || "#666")};font-family:${escapeAttr(s.bodyFont || "sans-serif")}">GETO</div>
           <div class="theme-card-thumb-accent" style="background:${escapeAttr(s.accentColor || "#f80")}"></div>
           <div class="theme-card-thumb-swatches">
             <span style="background:${escapeAttr(s.secondaryColor || "transparent")}"></span>
@@ -14341,14 +14341,14 @@
       const I = global.WpsAiI18n;
       if (I?.resolvedLang?.() === "en") {
         const translated = I.t(suffix);
-        if (translated !== suffix) return "Lingxi AI · " + translated;
+        if (translated !== suffix) return "GETO AI · " + translated;
         // 组合后缀（如「更正式预览」「快速润色预览」）：整词没命中时拆掉「预览」再翻
         const m = /^(.+)预览$/.exec(suffix);
-        if (m) return "Lingxi AI · " + (I.t(m[1]) || m[1]) + " Preview";
-        return "Lingxi AI · " + suffix;
+        if (m) return "GETO AI · " + (I.t(m[1]) || m[1]) + " Preview";
+        return "GETO AI · " + suffix;
       }
     } catch (e) {}
-    return "灵犀AI " + suffix;
+    return "志特AI " + suffix;
   }
 
   // 界面语言下拉：主面板 bindEvents 和设置 dialog 分支都要绑（设置实际通过 ?mode=settings
@@ -14492,7 +14492,7 @@
         if (chatBusy) return;
         _skillSuggest.dismissed = true;
         if (els.skillSuggestBar) els.skillSuggestBar.classList.add("hidden");
-        runChatTurn("把我们刚才这轮对话里做的操作总结成一个可复用的灵犀AI技能：起一个简洁的技能名，写清楚适用场景（description，便于以后判断何时套用），再把关键步骤 / 要点 / 坑整理成 content，用 save_skill 保存。");
+        runChatTurn("把我们刚才这轮对话里做的操作总结成一个可复用的志特AI技能：起一个简洁的技能名，写清楚适用场景（description，便于以后判断何时套用），再把关键步骤 / 要点 / 坑整理成 content，用 save_skill 保存。");
       });
     }
     if (els.skillSuggestDismissBtn) {
@@ -17841,7 +17841,7 @@
   function buildSampleData(layoutName) {
     // 用于画廊缩略图与点击后载入的演示用数据
     switch (layoutName) {
-      case "cover": return { title: "灵犀 AI\n演示文稿", subtitle: "你的副标题", tag: "2026 KEYNOTE" };
+      case "cover": return { title: "志特 AI\n演示文稿", subtitle: "你的副标题", tag: "2026 KEYNOTE" };
       case "section": return { number: "01", title: "章节标题", footer: "SECTION" };
       case "content": return { title: "核心要点", body: "第一条要点\n第二条要点\n第三条要点", tag: "OVERVIEW", footer: "" };
       case "stat": return { number: "98%", label: "增长率", description: "相较上一周期" };
@@ -17855,12 +17855,12 @@
         role: "Designer"
       };
       case "comparison": return {
-        title: "传统方式 vs 灵犀 AI",
+        title: "传统方式 vs 志特 AI",
         leftIcon: "x-circle",
         leftLabel: "传统方式",
         leftBody: "手工排版耗时\n配色全凭手感\n字体混用混乱\n改一处全页重排",
         rightIcon: "check-circle",
-        rightLabel: "灵犀 AI",
+        rightLabel: "志特 AI",
         rightBody: "一句话生成\n色板自动统一\n字体白名单约束\n字段独立可微调"
       };
       case "metric-trio": return {

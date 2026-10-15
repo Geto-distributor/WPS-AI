@@ -3764,7 +3764,7 @@ html.settings-mode #presetPickerModal { z-index: 1500; }
 .tab-bar-action { flex: none; white-space: nowrap; }
 
 @media (max-width: 720px) {
-  /* Header：藏"灵犀AI"四个字（logo 已经够识别），让 model select / authBadge 拿更多宽度 */
+  /* Header：藏"志特AI"四个字（logo 已经够识别），让 model select / authBadge 拿更多宽度 */
   .brand-name { display: none; }
   /* authBadge"未配置/已登录"这种状态信息次要，在 modelSelect 旁边藏掉 */
   #authBadge { display: none; }

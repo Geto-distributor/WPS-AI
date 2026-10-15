@@ -8,8 +8,8 @@
   if (typeof trace === "function") trace("generated.ribbonCallbacks.start", {"host":"wps","count":1});
   if (typeof bindAction === "function") bindAction("OnAction_openWpsAiPane", "openWpsAiPane");
   if (typeof bindImage === "function") bindImage("GetImage_openWpsAiPane", "openWpsAiPane");
-  if (typeof bindLabel === "function") bindLabel("GetLabel_openWpsAiPane", "打开灵犀AI");
-  if (typeof bindLabel === "function") bindLabel("GetLabel_tab_wpsAiTab", "灵犀AI");
-  if (typeof bindLabel === "function") bindLabel("GetLabel_group_lingxiCore", "灵犀AI");
+  if (typeof bindLabel === "function") bindLabel("GetLabel_openWpsAiPane", "打开志特AI");
+  if (typeof bindLabel === "function") bindLabel("GetLabel_tab_wpsAiTab", "志特AI");
+  if (typeof bindLabel === "function") bindLabel("GetLabel_group_lingxiCore", "志特AI");
   if (typeof trace === "function") trace("generated.ribbonCallbacks.done", {"host":"wps","ids":["openWpsAiPane"]});
 })(window);

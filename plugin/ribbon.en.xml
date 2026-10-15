@@ -2,9 +2,9 @@
 <customUI xmlns="http://schemas.microsoft.com/office/2006/01/customui" onLoad="OnAddinLoad">
   <ribbon startFromScratch="false">
     <tabs>
-      <tab id="wpsAiTab" label="Lingxi AI" getLabel="GetLabel_tab_wpsAiTab" 	insertBeforeMso="TabHome">
-        <group id="lingxiCore" label="Lingxi AI" getLabel="GetLabel_group_lingxiCore">
-          <button id="openWpsAiPane" label="Open Lingxi AI" getLabel="GetLabel_openWpsAiPane" size="large" image="images/ai.png" onAction="OnAction_openWpsAiPane" getImage="GetImage_openWpsAiPane" getVisible="OnGetVisible" getEnabled="OnGetEnabled"/>
+      <tab id="wpsAiTab" label="GETO AI" getLabel="GetLabel_tab_wpsAiTab" 	insertBeforeMso="TabHome">
+        <group id="lingxiCore" label="GETO AI" getLabel="GetLabel_group_lingxiCore">
+          <button id="openWpsAiPane" label="Open GETO AI" getLabel="GetLabel_openWpsAiPane" size="large" image="images/ai.png" onAction="OnAction_openWpsAiPane" getImage="GetImage_openWpsAiPane" getVisible="OnGetVisible" getEnabled="OnGetEnabled"/>
         </group>
       </tab>
     </tabs>

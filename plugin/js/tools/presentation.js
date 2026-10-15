@@ -46,7 +46,7 @@
     return pic;
   }
 
-  // 灵犀 PPT 设计宪法 — 集中定义在 registry.js（DESIGN_GUIDELINES），此处惰性读取。
+  // 志特 PPT 设计宪法 — 集中定义在 registry.js（DESIGN_GUIDELINES），此处惰性读取。
   const getDesignGuidelines = () => global.WpsAiProviderRegistry?.DESIGN_GUIDELINES || [];
 
   // 单位换算：1 英寸 = 72 磅；slide 单位是磅（point）
@@ -1430,7 +1430,7 @@
       "  - **主题元信息**：themeLabel（英文名）、themeDescription（用途定位）、themeDesign（设计理念+灵感来源）、darkMode（true=深色底主题，文字反白；用图表配色时也要切换深色板）",
       "  - **signatureElement**：该色板的标志视觉元素（必须在封面/章节页体现）",
       "  - **layoutHints**：该色板下优先用哪些模板/版式工具（直接照做）",
-      "  - **guidelines**：灵犀 PPT 设计宪法 10 条（每次配版前自检）",
+      "  - **guidelines**：志特 PPT 设计宪法 10 条（每次配版前自检）",
       "做高级版式时建议组合使用：",
       "  - 章节分隔页 → wpp_set_slide_background 用 primaryColor 满屏；标题用白色大字号",
       "  - 内容页 → 背景 backgroundColor；左侧 wpp_add_shape(rectangle, width=8, height=slideHeight, fill=primaryColor) 加装饰条",

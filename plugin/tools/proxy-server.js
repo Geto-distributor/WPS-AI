@@ -124,7 +124,7 @@ function rewritePublishXml(filePath, enabledHosts, staticBase) {
   return true;
 }
 
-// 服务状态：枚举本机灵犀相关进程（node serve-permanent/proxy-server/mcp-server + launcher），
+// 服务状态：枚举本机志特相关进程（node serve-permanent/proxy-server/mcp-server + launcher），
 // 返回 [{ pid, rssBytes, kind }]。best-effort，取不到就返回空数组。
 function serviceProcKind(cmd) {
   const s = String(cmd || "").toLowerCase();
@@ -2285,15 +2285,15 @@ const server = http.createServer(async (req, res) => {
   }
 
   // P2-6 导出为新 Word 文件：blocks 渲染的 HTML 存成 .doc（Word/WPS 原生可开 HTML-in-.doc），
-  // 不动当前文档。落到 ~/Documents/灵犀AI导出/，返回完整路径。零依赖方案。
+  // 不动当前文档。落到 ~/Documents/志特AI导出/，返回完整路径。零依赖方案。
   if (pathname === "/export-doc" && method === "POST") {
     try {
       const body = await readBody(req);
       const json = JSON.parse(body.toString("utf8") || "{}");
       const html = String(json.html || "");
       if (!html.trim()) { sendJson(res, 400, { ok: false, error: "缺少 html 内容" }); return; }
-      const safeName = String(json.fileName || "灵犀AI导出").replace(/[\\/:*?"<>|]/g, "_").slice(0, 60) || "灵犀AI导出";
-      const dir = path.join(os.homedir(), "Documents", "灵犀AI导出");
+      const safeName = String(json.fileName || "志特AI导出").replace(/[\\/:*?"<>|]/g, "_").slice(0, 60) || "志特AI导出";
+      const dir = path.join(os.homedir(), "Documents", "志特AI导出");
       fs.mkdirSync(dir, { recursive: true });
       const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
       const file = path.join(dir, `${safeName}-${stamp}.doc`);

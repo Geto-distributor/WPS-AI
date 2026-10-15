@@ -3,7 +3,7 @@
 
   const SETTINGS_KEY = "wps_ai_provider_settings_v1";
 
-  // 灵犀 PPT 设计宪法（每次配版前自检）——提炼自 frontend-slides SKILL.md 的反 AI slop 准则。
+  // 志特 PPT 设计宪法（每次配版前自检）——提炼自 frontend-slides SKILL.md 的反 AI slop 准则。
   // 同时由 wpp_get_style_preset（工具返回值）和 app.js（拼入 system prompt）两处消费。
   const DESIGN_GUIDELINES = Object.freeze([
     "一页一意：每页只表达一个核心观点，宁可拆页也不堆。",
@@ -141,7 +141,7 @@
     // 默认 true：让用户能用 WPS 原生工具选中文本框继续微调；之前实验阶段默认 false
     // 等于把功能藏起来了，对正常用户没意义。
     splitLayersOnInsert: true,
-    // 修订模式（仅 WPS 文字）：开后 AI 改动走 Word 原生修订，作者标为「灵犀AI」，可逐条接受/回撤
+    // 修订模式（仅 WPS 文字）：开后 AI 改动走 Word 原生修订，作者标为「志特AI」，可逐条接受/回撤
     reviseMode: false,
     // 用户可配置的系统提示词（追加到每轮 chat 的 system message 里）
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
