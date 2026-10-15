@@ -36,6 +36,11 @@ process.on("unhandledRejection", (reason) => {
 // isBlockedFetchHost 供 AI 可控的 /fetch-web、/image-search 用（更严，含 IPv6 映射/ULA/尾点）。
 const { isMetadataSsrfHost, isBlockedFetchHost } = require("./ssrf-guard");
 const kvStore = require("./kv-store.js");
+const skillZip = require("./skill-zip.js");
+const skillStore = require("./skill-store.js").createSkillStore();
+const docExtract = require("./doc-extract.js");
+const refFiles = require("./ref-files.js");
+const refRelay = require("./ref-relay.js").createRefRelay();
 const { readSystemClipboardText, writeSystemClipboardText, writeSystemClipboardImage } = require("./clipboard.js");
 const { buildRemoteImageHeaders, shouldUseChromiumFallback } = require("./remote-image-fetch");
 const { fetchImageWithChromium } = require("./chromium-fetch");
@@ -119,7 +124,7 @@ function rewritePublishXml(filePath, enabledHosts, staticBase) {
   return true;
 }
 
-// 服务状态：枚举本机灵犀相关进程（node serve-permanent/proxy-server/mcp-server + launcher），
+// 服务状态：枚举本机志特相关进程（node serve-permanent/proxy-server/mcp-server + launcher），
 // 返回 [{ pid, rssBytes, kind }]。best-effort，取不到就返回空数组。
 function serviceProcKind(cmd) {
   const s = String(cmd || "").toLowerCase();
@@ -1434,9 +1439,27 @@ function fetchModelsCatalog(url, cachePath, clientRes, serveCache, redirectsLeft
 // 非 PDF 用户不付出启动成本）。仅用 getTextContent，不需要 canvas 渲染（canvas 的告警可忽略）。
 // 按 path+mtime 缓存，避免同文件重复解析。
 let _pdfjsLib = null;
+// pdfjs-dist 随包放在 tools/vendor/pdfjs-dist（安装包不带 node_modules）；开发环境里 npm 装的那份作兜底
+const PDFJS_VENDOR_DIR = path.join(__dirname, "vendor", "pdfjs-dist");
 function getPdfjs() {
-  if (!_pdfjsLib) _pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
+  if (!_pdfjsLib) {
+    try {
+      _pdfjsLib = require(path.join(PDFJS_VENDOR_DIR, "legacy", "build", "pdf.js"));
+    } catch (vendorError) {
+      try {
+        _pdfjsLib = require("pdfjs-dist/legacy/build/pdf.js");
+      } catch (e) {
+        if (e && e.code === "MODULE_NOT_FOUND") throw new Error("PDF 磁盘解析组件（pdfjs-dist）不在当前安装包里");
+        throw e;
+      }
+    }
+  }
   return _pdfjsLib;
+}
+// 中文等 CID 字体的 PDF 需要 CMap 才能把字形还原成文字；随包带了压缩 CMap
+function pdfjsCMapOptions() {
+  const dir = path.join(PDFJS_VENDOR_DIR, "cmaps");
+  return fs.existsSync(dir) ? { cMapUrl: dir + path.sep, cMapPacked: true } : {};
 }
 const _pdfExtractCache = new Map(); // normKey -> { mtimeMs, result }
 const PDF_EXTRACT_MAX_BYTES = 150 * 1024 * 1024; // 防 OOM：超大 PDF 直接拒绝
@@ -1450,7 +1473,7 @@ async function extractPdfText(filePath) {
   if (cached && cached.mtimeMs === st.mtimeMs) return cached.result;
   const pdfjs = getPdfjs();
   const data = new Uint8Array(fs.readFileSync(filePath));
-  const doc = await pdfjs.getDocument({ data, useSystemFonts: true, isEvalSupported: false }).promise;
+  const doc = await pdfjs.getDocument(Object.assign({ data, useSystemFonts: true, isEvalSupported: false }, pdfjsCMapOptions())).promise;
   const pageCount = doc.numPages;
   const pages = [];
   let charCount = 0;
@@ -1496,6 +1519,9 @@ async function extractPdfText(filePath) {
   _pdfExtractCache.set(key, { mtimeMs: st.mtimeMs, result });
   return result;
 }
+
+// 参考文档磁盘读取：复用上面的 pdfjs 抽取，docx / xlsx / pptx 在 doc-extract.js 里解析；按 mtime 缓存
+const refExtractor = docExtract.createExtractor({ extractPdfText });
 
 const server = http.createServer(async (req, res) => {
   const { method, url: reqUrl } = req;
@@ -2032,6 +2058,91 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ===== 技能包解压：POST /skill/unzip（body = zip 原始字节）→ { files:[{path,content}], skipped:[...] } =====
+  // 只在内存里解压并返回文本文件，不落盘；前端据此组装多文件技能（SKILL.md + references/...）。
+  if (pathname === "/skill/unzip" && method === "POST") {
+    try {
+      const body = await readBody(req);
+      sendJson(res, 200, Object.assign({ ok: true }, skillZip.extractTextFiles(body)));
+    } catch (e) {
+      sendJson(res, 400, { ok: false, error: e && e.message ? e.message : String(e) });
+    }
+    return;
+  }
+
+  // ===== 参考文档：选文件 / 在 WPS 打开 / 磁盘读取 / 已打开文档登记 / 委托代读（前端 WpsAiRefDocs 用）=====
+  if (pathname.startsWith("/refs/")) {
+    try {
+      if (pathname === "/refs/open-docs" && method === "GET") {
+        const online = {};
+        ["wps", "et", "wpp", "pdf"].forEach((h) => { online[h] = refRelay.workerOnline(h); });
+        sendJson(res, 200, { ok: true, docs: refRelay.listOpenDocs(), online });
+        return;
+      }
+      if (pathname === "/refs/instances" && method === "GET") {
+        sendJson(res, 200, { ok: true, instances: refRelay.listInstances() });
+        return;
+      }
+      if (pathname === "/refs/poll" && method === "GET") {
+        const host = String(parsedUrl.searchParams.get("host") || "");
+        const instance = String(parsedUrl.searchParams.get("instance") || "");
+        if (!host || !instance) { sendJson(res, 400, { ok: false, error: "host / instance 必填" }); return; }
+        const call = await refRelay.poll(host, instance);
+        sendJson(res, 200, { ok: true, call });
+        return;
+      }
+      if (method !== "POST") { sendJson(res, 405, { ok: false, error: "method not allowed" }); return; }
+      const json = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      if (pathname === "/refs/pick") { sendJson(res, 200, { ok: true, paths: await refFiles.pickFiles() }); return; }
+      if (pathname === "/refs/open") { sendJson(res, 200, { ok: true, results: refFiles.openInWps(json.paths) }); return; }
+      if (pathname === "/refs/focus") { sendJson(res, 200, Object.assign({ ok: true }, { result: refFiles.focusInWps(json.path) })); return; }
+      if (pathname === "/refs/presence") { refRelay.report(json); sendJson(res, 200, { ok: true }); return; }
+      if (pathname === "/refs/result") { sendJson(res, 200, { ok: true, accepted: refRelay.resolveCall(String(json.callId || ""), json.result) }); return; }
+      if (pathname === "/refs/read") {
+        const filePath = String(json.path || "");
+        if (!filePath || !fs.existsSync(filePath)) { sendJson(res, 404, { ok: false, error: "文件不存在：" + filePath }); return; }
+        const doc = await refExtractor.get(filePath);
+        sendJson(res, 200, Object.assign({ ok: true, source: "disk" }, docExtract.sliceDocument(doc, json)));
+        return;
+      }
+      if (pathname === "/refs/delegate") {
+        const host = String(json.host || "");
+        if (!refRelay.workerOnline(host)) { sendJson(res, 409, { ok: false, error: `${host} 组件的插件当前不在线，无法委托读取` }); return; }
+        // 插件读回整份文档（带分节），分页在这里切，和磁盘读取用同一套 offset / maxChars / section 语义
+        const result = await refRelay.request(host, { op: "read", path: json.path });
+        if (!result || result.ok === false || typeof result.text !== "string") {
+          sendJson(res, 409, { ok: false, error: (result && result.error) || "委托读取失败" });
+          return;
+        }
+        const sliced = docExtract.sliceDocument({ kind: result.kind, text: result.text, sections: result.sections || [] }, json);
+        sendJson(res, 200, Object.assign({ ok: true, source: "wps", saved: result.saved !== false }, sliced));
+        return;
+      }
+      sendJson(res, 404, { ok: false, error: "未知 refs 路由: " + pathname });
+    } catch (e) {
+      sendJson(res, 400, { ok: false, error: e && e.message ? e.message : String(e) });
+    }
+    return;
+  }
+
+  // ===== 技能磁盘存储：~/.lingxi-ai/skills/<技能目录>/（前端 WpsAiSkills 用）=====
+  if (pathname.startsWith("/skills/")) {
+    try {
+      if (pathname === "/skills/list" && method === "GET") { sendJson(res, 200, Object.assign({ ok: true }, skillStore.list())); return; }
+      if (method !== "POST") { sendJson(res, 405, { ok: false, error: "method not allowed" }); return; }
+      const json = JSON.parse((await readBody(req)).toString("utf8") || "{}");
+      if (pathname === "/skills/put") { skillStore.put(json.dir, json.files); sendJson(res, 200, { ok: true }); return; }
+      if (pathname === "/skills/write") { skillStore.writeFile(json.dir, json.path, json.content); sendJson(res, 200, { ok: true }); return; }
+      if (pathname === "/skills/delete-file") { sendJson(res, 200, { ok: true, removed: skillStore.deleteFile(json.dir, json.path) }); return; }
+      if (pathname === "/skills/rename") { skillStore.rename(json.from, json.to); sendJson(res, 200, { ok: true }); return; }
+      if (pathname === "/skills/delete") { sendJson(res, 200, { ok: true, removed: skillStore.remove(json.dir) }); return; }
+      sendJson(res, 404, { ok: false, error: "未知 skills 路由: " + pathname });
+    } catch (e) {
+      sendJson(res, 400, { ok: false, error: e && e.message ? e.message : String(e) });
+    }
+    return;
+  }
+
   // ===== SQLite KV 存储（前端 WpsAiStore 用；node:sqlite 不可用一律 503 → 前端降级 localStorage）=====
   if (pathname.startsWith("/kv/")) {
     if (!kvStore.available()) { sendJson(res, 503, { ok: false, error: "node:sqlite 未启用（需 --experimental-sqlite 启动代理）" }); return; }
@@ -2174,15 +2285,15 @@ const server = http.createServer(async (req, res) => {
   }
 
   // P2-6 导出为新 Word 文件：blocks 渲染的 HTML 存成 .doc（Word/WPS 原生可开 HTML-in-.doc），
-  // 不动当前文档。落到 ~/Documents/灵犀AI导出/，返回完整路径。零依赖方案。
+  // 不动当前文档。落到 ~/Documents/志特AI导出/，返回完整路径。零依赖方案。
   if (pathname === "/export-doc" && method === "POST") {
     try {
       const body = await readBody(req);
       const json = JSON.parse(body.toString("utf8") || "{}");
       const html = String(json.html || "");
       if (!html.trim()) { sendJson(res, 400, { ok: false, error: "缺少 html 内容" }); return; }
-      const safeName = String(json.fileName || "灵犀AI导出").replace(/[\\/:*?"<>|]/g, "_").slice(0, 60) || "灵犀AI导出";
-      const dir = path.join(os.homedir(), "Documents", "灵犀AI导出");
+      const safeName = String(json.fileName || "志特AI导出").replace(/[\\/:*?"<>|]/g, "_").slice(0, 60) || "志特AI导出";
+      const dir = path.join(os.homedir(), "Documents", "志特AI导出");
       fs.mkdirSync(dir, { recursive: true });
       const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
       const file = path.join(dir, `${safeName}-${stamp}.doc`);
@@ -3209,7 +3320,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(JSON.stringify({
       error: {
-        message: `未知路由: ${pathname}。若刚更新过插件，请重启本地代理（重跑 npm run dev:* 或重装/重启后台服务）。常用：/forward/<encoded-base>/*, /upload-image, /save-local-image-as, /image-edit, /toapis-upload-image, /asset/js/vendor/*, /fetch-remote-image, /fetch-web, /image-search, /active-pdf-path, /load-local-file, /doc-snapshot, /doc-restore, /kv/all, /kv/batch, /kv/merge-list, /kv/merge-object, /kv/stats, /kv/clear`
+        message: `未知路由: ${pathname}。若刚更新过插件，请重启本地代理（重跑 npm run dev:* 或重装/重启后台服务）。常用：/forward/<encoded-base>/*, /upload-image, /save-local-image-as, /image-edit, /toapis-upload-image, /asset/js/vendor/*, /fetch-remote-image, /fetch-web, /image-search, /active-pdf-path, /load-local-file, /doc-snapshot, /doc-restore, /skill/unzip, /refs/pick, /refs/open, /refs/focus, /refs/read, /refs/open-docs, /refs/delegate, /skills/list, /skills/put, /skills/write, /skills/delete-file, /skills/rename, /skills/delete, /kv/all, /kv/batch, /kv/merge-list, /kv/merge-object, /kv/stats, /kv/clear`
       }
     }));
     return;

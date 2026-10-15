@@ -249,7 +249,7 @@ test("PDF 对照翻译直接打开最终 dialog，并把 docPath 写入 localSto
   await flushPromises();
 
   assert.equal(calls.showDialog.url, "http://127.0.0.1:3889/taskpane.html?mode=paralleltranslate");
-  assert.equal(calls.showDialog.title, "灵犀AI 对照翻译");
+  assert.equal(calls.showDialog.title, "志特AI 对照翻译");
   assert.equal(calls.showDialog.modal, true);
   const req = JSON.parse(storage.get("ls:lingxi_parallel_translate_dialog_request_v1"));
   assert.equal(req.docPath, "/tmp/direct.pdf");
@@ -284,7 +284,7 @@ test("PDF 对照翻译在宿主不暴露路径时仍会打开 dialog，并写入
   await flushPromises();
 
   assert.equal(calls.showDialog.url, "http://127.0.0.1:3889/taskpane.html?mode=paralleltranslate");
-  assert.equal(calls.showDialog.title, "灵犀AI 对照翻译");
+  assert.equal(calls.showDialog.title, "志特AI 对照翻译");
   const req = JSON.parse(storage.get("ls:lingxi_parallel_translate_dialog_request_v1"));
   assert.equal(req.docPath, "");
 });
@@ -456,19 +456,15 @@ test("仓库默认 ribbon 保持 WPS 文字按钮，避免 mac Word 加载到 PD
   const ribbonXml = fs.readFileSync(path.join(__dirname, "../ribbon.xml"), "utf8");
   assert.equal(pkg.addonType, "wps");
   assert.equal(manifest.addonType, "wps");
-  assert.match(ribbonXml, /id="quick\.wps\.helpWrite"/);
-  assert.match(ribbonXml, /id="quick\.wps\.polish"/);
-  assert.match(ribbonXml, /id="quick\.wps\.translate"/);
-  assert.doesNotMatch(ribbonXml, /id="quick\.pdf\./);
-  assert.match(wpsRibbonXml, /id="quick\.wps\.helpWrite"[^>]*image="images\/icons\/writing\.png"/);
+  assert.match(ribbonXml, /id="openWpsAiPane"/);
+  assert.equal((ribbonXml.match(/<button /g) || []).length, 1, "ribbon 只保留「打开志特AI」一个按钮");
+  assert.doesNotMatch(ribbonXml, /id="quick\./);
+  assert.doesNotMatch(wpsRibbonXml, /id="quick\./);
 });
 
 test("PDF ribbon 按钮带静态 PNG image，兼容不拉取 getImage 路径的 PDF 宿主", () => {
   assert.match(pdfRibbonXml, /id="openWpsAiPane"[^>]*image="images\/ai\.png"/);
-  assert.match(pdfRibbonXml, /id="quick\.pdf\.parallelTranslate"[^>]*image="images\/icons\/translate\.png"/);
-  assert.match(pdfRibbonXml, /id="quick\.pdf\.summary"[^>]*image="images\/icons\/document\.png"/);
-  assert.match(pdfRibbonXml, /id="quick\.pdf\.qa"[^>]*image="images\/icons\/document\.png"/);
-  assert.match(pdfRibbonXml, /id="quick\.pdf\.suggest"[^>]*image="images\/icons\/wand\.png"/);
+  assert.equal((pdfRibbonXml.match(/<button /g) || []).length, 1, "PDF ribbon 同样只保留「打开志特AI」");
   assert.match(genRibbonJs, /function buttonAttrs/, "静态 image 属性应由生成器统一输出");
 });
 

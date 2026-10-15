@@ -2,44 +2,9 @@
 <customUI xmlns="http://schemas.microsoft.com/office/2006/01/customui" onLoad="OnAddinLoad">
   <ribbon startFromScratch="false">
     <tabs>
-      <tab id="wpsAiTab" label="Lingxi AI" getLabel="GetLabel_tab_wpsAiTab" 	insertBeforeMso="TabHome">
-        <group id="lingxiCore" label="Lingxi AI" getLabel="GetLabel_group_lingxiCore">
-          <button id="openWpsAiPane" label="Open Lingxi AI" getLabel="GetLabel_openWpsAiPane" size="large" image="images/ai.png" onAction="OnAction_openWpsAiPane" getImage="GetImage_openWpsAiPane" getVisible="OnGetVisible" getEnabled="OnGetEnabled"/>
-        </group>
-        <group id="lingxi_wps_writing" label="Writing" getLabel="GetLabel_group_lingxi_wps_writing">
-          <button id="quick.wps.helpWrite" label="Help me write" getLabel="GetLabel_quick_wps_helpWrite" size="normal" image="images/icons/writing.png" onAction="OnAction_quick_wps_helpWrite" getImage="GetImage_quick_wps_helpWrite" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.continue" label="Continue writing" getLabel="GetLabel_quick_wps_continue" size="normal" image="images/icons/writing.png" onAction="OnAction_quick_wps_continue" getImage="GetImage_quick_wps_continue" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.expand" label="Expand" getLabel="GetLabel_quick_wps_expand" size="normal" image="images/icons/writing.png" onAction="OnAction_quick_wps_expand" getImage="GetImage_quick_wps_expand" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.shrink" label="Condense" getLabel="GetLabel_quick_wps_shrink" size="normal" image="images/icons/writing.png" onAction="OnAction_quick_wps_shrink" getImage="GetImage_quick_wps_shrink" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.rewrite" label="Rewrite" getLabel="GetLabel_quick_wps_rewrite" size="normal" image="images/icons/writing.png" onAction="OnAction_quick_wps_rewrite" getImage="GetImage_quick_wps_rewrite" getEnabled="OnGetEnabled"/>
-        </group>
-        <group id="lingxi_wps_polish" label="Polish" getLabel="GetLabel_group_lingxi_wps_polish">
-          <button id="quick.wps.polish" label="Quick polish" getLabel="GetLabel_quick_wps_polish" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_polish" getImage="GetImage_quick_wps_polish" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.optimize" label="Optimize" getLabel="GetLabel_quick_wps_optimize" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_optimize" getImage="GetImage_quick_wps_optimize" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.polishFormal" label="More formal" getLabel="GetLabel_quick_wps_polishFormal" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_polishFormal" getImage="GetImage_quick_wps_polishFormal" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.polishAcademic" label="More academic" getLabel="GetLabel_quick_wps_polishAcademic" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_polishAcademic" getImage="GetImage_quick_wps_polishAcademic" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.polishGov" label="Official style" getLabel="GetLabel_quick_wps_polishGov" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_polishGov" getImage="GetImage_quick_wps_polishGov" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.polishLively" label="More lively" getLabel="GetLabel_quick_wps_polishLively" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_polishLively" getImage="GetImage_quick_wps_polishLively" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.polishCasual" label="Conversational" getLabel="GetLabel_quick_wps_polishCasual" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_polishCasual" getImage="GetImage_quick_wps_polishCasual" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.polishAll" label="Polish document" getLabel="GetLabel_quick_wps_polishAll" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_polishAll" getImage="GetImage_quick_wps_polishAll" getEnabled="OnGetEnabled"/>
-        </group>
-        <group id="lingxi_wps_translate" label="Translate" getLabel="GetLabel_group_lingxi_wps_translate">
-          <button id="quick.wps.translate" label="Translate selection" getLabel="GetLabel_quick_wps_translate" size="normal" image="images/icons/translate.png" onAction="OnAction_quick_wps_translate" getImage="GetImage_quick_wps_translate" getEnabled="OnGetEnabled"/>
-        </group>
-        <group id="lingxi_wps_document" label="Document" getLabel="GetLabel_group_lingxi_wps_document">
-          <button id="quick.wps.summary" label="Summarize document" getLabel="GetLabel_quick_wps_summary" size="normal" image="images/icons/document.png" onAction="OnAction_quick_wps_summary" getImage="GetImage_quick_wps_summary" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.mindmap" label="Mind map" getLabel="GetLabel_quick_wps_mindmap" size="normal" image="images/icons/document.png" onAction="OnAction_quick_wps_mindmap" getImage="GetImage_quick_wps_mindmap" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.format" label="AI Format" getLabel="GetLabel_quick_wps_format" size="normal" image="images/icons/document.png" onAction="OnAction_quick_wps_format" getImage="GetImage_quick_wps_format" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.proofread" label="Proofread (comments)" getLabel="GetLabel_quick_wps_proofread" size="normal" image="images/icons/document.png" onAction="OnAction_quick_wps_proofread" getImage="GetImage_quick_wps_proofread" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.compliance" label="Compliance check" getLabel="GetLabel_quick_wps_compliance" size="normal" image="images/icons/document.png" onAction="OnAction_quick_wps_compliance" getImage="GetImage_quick_wps_compliance" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.qa" label="Document Q&amp;A" getLabel="GetLabel_quick_wps_qa" size="normal" image="images/icons/document.png" onAction="OnAction_quick_wps_qa" getImage="GetImage_quick_wps_qa" getEnabled="OnGetEnabled"/>
-        </group>
-        <group id="lingxi_wps_image" label="Image" getLabel="GetLabel_group_lingxi_wps_image">
-          <button id="quick.wps.image" label="AI image" getLabel="GetLabel_quick_wps_image" size="normal" image="images/icons/image.png" onAction="OnAction_quick_wps_image" getImage="GetImage_quick_wps_image" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.materialLibrary" label="Assets" getLabel="GetLabel_quick_wps_materialLibrary" size="normal" image="images/icons/image.png" onAction="OnAction_quick_wps_materialLibrary" getImage="GetImage_quick_wps_materialLibrary" getEnabled="OnGetEnabled"/>
-        </group>
-        <group id="lingxi_wps_smart" label="Smart" getLabel="GetLabel_group_lingxi_wps_smart">
-          <button id="quick.wps.suggest" label="Smart suggestions" getLabel="GetLabel_quick_wps_suggest" size="normal" image="images/icons/wand.png" onAction="OnAction_quick_wps_suggest" getImage="GetImage_quick_wps_suggest" getEnabled="OnGetEnabled"/>
+      <tab id="wpsAiTab" label="GETO AI" getLabel="GetLabel_tab_wpsAiTab" 	insertBeforeMso="TabHome">
+        <group id="lingxiCore" label="GETO AI" getLabel="GetLabel_group_lingxiCore">
+          <button id="openWpsAiPane" label="Open GETO AI" getLabel="GetLabel_openWpsAiPane" size="large" image="images/ai.png" onAction="OnAction_openWpsAiPane" getImage="GetImage_openWpsAiPane" getVisible="OnGetVisible" getEnabled="OnGetEnabled"/>
         </group>
       </tab>
     </tabs>

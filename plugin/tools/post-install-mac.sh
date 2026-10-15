@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 灵犀AI macOS 安装后脚本(用户上下文)
+# 志特AI macOS 安装后脚本(用户上下文)
 #
 # 由 installer-mac/scripts/postinstall (root 上下文) 通过 sudo -u 调起。
 # 也可以直接手跑做调试: bash post-install-mac.sh <INSTALL_DIR>
@@ -107,6 +107,10 @@ if [ $BUILD_RC -ne 0 ]; then
   log "[X] 生成宿主变体失败,详见 $LOG"
   exit 1
 fi
+
+# ---- 3b. 顺带安装技能（plugin/skills/*）：技能还在就不动，不在了才装；失败不影响安装 ----
+log "[post-install] 安装随包技能到 $TARGET/skills..."
+"$NODE_BIN" "$INSTALL_DIR/plugin/tools/install-bundled-skills.js" --skills "$INSTALL_DIR/plugin/skills" --root "$TARGET/skills" >>"$LOG" 2>&1 || true
 
 # ---- 4. 拷服务脚本 ----
 mkdir -p "$TARGET/tools"

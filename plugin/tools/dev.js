@@ -555,14 +555,14 @@ function cleanupMacDebugPublish() {
 
 function cleanupWindowsDebugPublish() {
   // 对称补齐 mac 的清理：Windows 无论走 wpsjs debug（写 lingxi-ai）还是静态兜底
-  // （写 lingxi-ai-dev），退出时都把 publish.xml 里指向本地 dev 服务的灵犀 online
+  // （写 lingxi-ai-dev），退出时都把 publish.xml 里指向本地 dev 服务的志特 online
   // 条目删掉，否则下次打开 WPS 仍会尝试从已停掉的 127.0.0.1 端口加载 → 面板空白。
   // wps/et/wpp/pdf 共用同一个 publish.xml，一次清理覆盖全部宿主。
   if (!isWindows) return;
   try {
     const removed = removeWindowsDevPublish();
     if (removed > 0) {
-      process.stdout.write("[dev] 已清理 Windows 临时调试注册（publish.xml 中的灵犀 online 条目）。\n");
+      process.stdout.write("[dev] 已清理 Windows 临时调试注册（publish.xml 中的志特 online 条目）。\n");
     }
   } catch (error) {
     process.stderr.write(`[dev] 清理 Windows 临时调试注册失败：${error.message}\n`);

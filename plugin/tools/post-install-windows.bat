@@ -95,6 +95,10 @@ if errorlevel 1 (
 )
 popd
 
+REM ---- 3b. 顺带安装技能（plugin\skills\*）：技能还在就不动，不在了才装；失败不影响安装 ----
+echo [post-install] 安装随包技能到 %TARGET%\skills...
+"%NODE_EXE%" "%INSTALL_DIR%\plugin\tools\install-bundled-skills.js" --skills "%INSTALL_DIR%\plugin\skills" --root "%TARGET%\skills"
+
 REM ---- 4. 拷服务脚本 ----
 if not exist "%TARGET%\tools" mkdir "%TARGET%\tools"
 copy /Y "%INSTALL_DIR%\plugin\tools\serve-permanent.js" "%TARGET%\tools\serve-permanent.js"

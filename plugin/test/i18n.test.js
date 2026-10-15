@@ -83,7 +83,7 @@ test("ribbon 所有 getLabel 绑定的中文 label 在词典里都有英文翻�
   const re = /bindLabel\("[^"]+",\s*"((?:[^"\\]|\\.)*)"\)/g;
   let m;
   while ((m = re.exec(gen))) labels.push(JSON.parse('"' + m[1] + '"'));
-  assert.ok(labels.length >= 20, `应至少绑定 20 个 label（实际 ${labels.length}）`);
+  assert.ok(labels.length >= 3, `应至少绑定 tab / group / 打开按钮 3 个 label（实际 ${labels.length}）`);
   const missing = labels.filter((l) => !(l in i18n._dict));
   assert.deepEqual(missing, [], `这些 ribbon label 缺英文翻译：${missing.join("、")}`);
 });
@@ -99,7 +99,7 @@ test("ribbon.xml 的 tab/group/button 都带 getLabel 回调", () => {
 
 test("ribbon.en.xml 存在且 label 全部为英文（无未翻译中文残留）", () => {
   const xml = fs.readFileSync(path.join(__dirname, "..", "ribbon.en.xml"), "utf8");
-  assert.match(xml, /label="Lingxi AI"/);
+  assert.match(xml, /label="GETO AI"/);
   const labels = xml.match(/label="[^"]*"/g) || [];
   const cn = labels.filter((l) => /[一-龥]/.test(l));
   assert.deepEqual(cn, [], `英文 ribbon 里不应有中文 label：${cn.join(" ")}`);

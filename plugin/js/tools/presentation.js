@@ -46,7 +46,7 @@
     return pic;
   }
 
-  // 灵犀 PPT 设计宪法 — 集中定义在 registry.js（DESIGN_GUIDELINES），此处惰性读取。
+  // 志特 PPT 设计宪法 — 集中定义在 registry.js（DESIGN_GUIDELINES），此处惰性读取。
   const getDesignGuidelines = () => global.WpsAiProviderRegistry?.DESIGN_GUIDELINES || [];
 
   // 单位换算：1 英寸 = 72 磅；slide 单位是磅（point）
@@ -1430,7 +1430,7 @@
       "  - **主题元信息**：themeLabel（英文名）、themeDescription（用途定位）、themeDesign（设计理念+灵感来源）、darkMode（true=深色底主题，文字反白；用图表配色时也要切换深色板）",
       "  - **signatureElement**：该色板的标志视觉元素（必须在封面/章节页体现）",
       "  - **layoutHints**：该色板下优先用哪些模板/版式工具（直接照做）",
-      "  - **guidelines**：灵犀 PPT 设计宪法 10 条（每次配版前自检）",
+      "  - **guidelines**：志特 PPT 设计宪法 10 条（每次配版前自检）",
       "做高级版式时建议组合使用：",
       "  - 章节分隔页 → wpp_set_slide_background 用 primaryColor 满屏；标题用白色大字号",
       "  - 内容页 → 背景 backgroundColor；左侧 wpp_add_shape(rectangle, width=8, height=slideHeight, fill=primaryColor) 加装饰条",
@@ -2498,7 +2498,7 @@
       "",
       "**配图复用**：插图前可先调 query_materials（按 tags/project/关键词）看素材库有没有可复用的图，命中就直接用它的 url 写进 <img src>，省一次生成。",
       "**配图分步生成**：freeform HTML 里需 AI 生成的图片，用 <img data-gen-prompt=\"图像描述\" data-gen-size=\"16:9\"> 声明（size/resolution 可选）。",
-      "  工具会先用占位骨架把整套 deck 秒级插入供预览，再后台异步生成图片、每页图齐后自动替换。**不要**为了配图先去逐个调 generate_image 再拼 URL——直接在 HTML 里写 data-gen-prompt 即可。已有确定 URL 的图片照常写 src。"
+      "  工具会先用占位骨架把整套 deck 秒级插入供预览，再后台异步生成图片、每页图齐后自动替换。直接在 HTML 里写 data-gen-prompt 即可，不需要也没有单独的生图工具可调。已有确定 URL 的图片照常写 src。"
     ].join("\n"),
     parameters: {
       type: "object",

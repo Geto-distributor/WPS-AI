@@ -2,44 +2,9 @@
 <customUI xmlns="http://schemas.microsoft.com/office/2006/01/customui" onLoad="OnAddinLoad">
   <ribbon startFromScratch="false">
     <tabs>
-      <tab id="wpsAiTab" label="灵犀AI" getLabel="GetLabel_tab_wpsAiTab" 	insertBeforeMso="TabHome">
-        <group id="lingxiCore" label="灵犀AI" getLabel="GetLabel_group_lingxiCore">
-          <button id="openWpsAiPane" label="打开灵犀AI" getLabel="GetLabel_openWpsAiPane" size="large" image="images/ai.png" onAction="OnAction_openWpsAiPane" getImage="GetImage_openWpsAiPane" getVisible="OnGetVisible" getEnabled="OnGetEnabled"/>
-        </group>
-        <group id="lingxi_wps_writing" label="写作" getLabel="GetLabel_group_lingxi_wps_writing">
-          <button id="quick.wps.helpWrite" label="帮我写" getLabel="GetLabel_quick_wps_helpWrite" size="normal" image="images/icons/writing.png" onAction="OnAction_quick_wps_helpWrite" getImage="GetImage_quick_wps_helpWrite" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.continue" label="续写" getLabel="GetLabel_quick_wps_continue" size="normal" image="images/icons/writing.png" onAction="OnAction_quick_wps_continue" getImage="GetImage_quick_wps_continue" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.expand" label="扩写" getLabel="GetLabel_quick_wps_expand" size="normal" image="images/icons/writing.png" onAction="OnAction_quick_wps_expand" getImage="GetImage_quick_wps_expand" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.shrink" label="缩写" getLabel="GetLabel_quick_wps_shrink" size="normal" image="images/icons/writing.png" onAction="OnAction_quick_wps_shrink" getImage="GetImage_quick_wps_shrink" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.rewrite" label="重写" getLabel="GetLabel_quick_wps_rewrite" size="normal" image="images/icons/writing.png" onAction="OnAction_quick_wps_rewrite" getImage="GetImage_quick_wps_rewrite" getEnabled="OnGetEnabled"/>
-        </group>
-        <group id="lingxi_wps_polish" label="润色" getLabel="GetLabel_group_lingxi_wps_polish">
-          <button id="quick.wps.polish" label="快速润色" getLabel="GetLabel_quick_wps_polish" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_polish" getImage="GetImage_quick_wps_polish" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.optimize" label="优化" getLabel="GetLabel_quick_wps_optimize" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_optimize" getImage="GetImage_quick_wps_optimize" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.polishFormal" label="更正式" getLabel="GetLabel_quick_wps_polishFormal" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_polishFormal" getImage="GetImage_quick_wps_polishFormal" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.polishAcademic" label="更学术" getLabel="GetLabel_quick_wps_polishAcademic" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_polishAcademic" getImage="GetImage_quick_wps_polishAcademic" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.polishGov" label="党政风" getLabel="GetLabel_quick_wps_polishGov" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_polishGov" getImage="GetImage_quick_wps_polishGov" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.polishLively" label="更活泼" getLabel="GetLabel_quick_wps_polishLively" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_polishLively" getImage="GetImage_quick_wps_polishLively" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.polishCasual" label="口语化" getLabel="GetLabel_quick_wps_polishCasual" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_polishCasual" getImage="GetImage_quick_wps_polishCasual" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.polishAll" label="全文润色" getLabel="GetLabel_quick_wps_polishAll" size="normal" image="images/icons/polish.png" onAction="OnAction_quick_wps_polishAll" getImage="GetImage_quick_wps_polishAll" getEnabled="OnGetEnabled"/>
-        </group>
-        <group id="lingxi_wps_translate" label="翻译" getLabel="GetLabel_group_lingxi_wps_translate">
-          <button id="quick.wps.translate" label="翻译选中" getLabel="GetLabel_quick_wps_translate" size="normal" image="images/icons/translate.png" onAction="OnAction_quick_wps_translate" getImage="GetImage_quick_wps_translate" getEnabled="OnGetEnabled"/>
-        </group>
-        <group id="lingxi_wps_document" label="文档" getLabel="GetLabel_group_lingxi_wps_document">
-          <button id="quick.wps.summary" label="全文总结" getLabel="GetLabel_quick_wps_summary" size="normal" image="images/icons/document.png" onAction="OnAction_quick_wps_summary" getImage="GetImage_quick_wps_summary" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.mindmap" label="文档脑图" getLabel="GetLabel_quick_wps_mindmap" size="normal" image="images/icons/document.png" onAction="OnAction_quick_wps_mindmap" getImage="GetImage_quick_wps_mindmap" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.format" label="AI 排版" getLabel="GetLabel_quick_wps_format" size="normal" image="images/icons/document.png" onAction="OnAction_quick_wps_format" getImage="GetImage_quick_wps_format" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.proofread" label="批注校对" getLabel="GetLabel_quick_wps_proofread" size="normal" image="images/icons/document.png" onAction="OnAction_quick_wps_proofread" getImage="GetImage_quick_wps_proofread" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.compliance" label="合规检查" getLabel="GetLabel_quick_wps_compliance" size="normal" image="images/icons/document.png" onAction="OnAction_quick_wps_compliance" getImage="GetImage_quick_wps_compliance" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.qa" label="文档问答" getLabel="GetLabel_quick_wps_qa" size="normal" image="images/icons/document.png" onAction="OnAction_quick_wps_qa" getImage="GetImage_quick_wps_qa" getEnabled="OnGetEnabled"/>
-        </group>
-        <group id="lingxi_wps_image" label="图像" getLabel="GetLabel_group_lingxi_wps_image">
-          <button id="quick.wps.image" label="AI 生成图片" getLabel="GetLabel_quick_wps_image" size="normal" image="images/icons/image.png" onAction="OnAction_quick_wps_image" getImage="GetImage_quick_wps_image" getEnabled="OnGetEnabled"/>
-          <button id="quick.wps.materialLibrary" label="素材库" getLabel="GetLabel_quick_wps_materialLibrary" size="normal" image="images/icons/image.png" onAction="OnAction_quick_wps_materialLibrary" getImage="GetImage_quick_wps_materialLibrary" getEnabled="OnGetEnabled"/>
-        </group>
-        <group id="lingxi_wps_smart" label="智能" getLabel="GetLabel_group_lingxi_wps_smart">
-          <button id="quick.wps.suggest" label="智能推荐操作" getLabel="GetLabel_quick_wps_suggest" size="normal" image="images/icons/wand.png" onAction="OnAction_quick_wps_suggest" getImage="GetImage_quick_wps_suggest" getEnabled="OnGetEnabled"/>
+      <tab id="wpsAiTab" label="志特AI" getLabel="GetLabel_tab_wpsAiTab" 	insertBeforeMso="TabHome">
+        <group id="lingxiCore" label="志特AI" getLabel="GetLabel_group_lingxiCore">
+          <button id="openWpsAiPane" label="打开志特AI" getLabel="GetLabel_openWpsAiPane" size="large" image="images/ai.png" onAction="OnAction_openWpsAiPane" getImage="GetImage_openWpsAiPane" getVisible="OnGetVisible" getEnabled="OnGetEnabled"/>
         </group>
       </tab>
     </tabs>

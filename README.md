@@ -1,4 +1,4 @@
-<h1 align="center">灵犀AI · WPS Office 多宿主 AI 助手</h1>
+<h1 align="center">志特AI · WPS Office 多宿主 AI 助手</h1>
 
 <p align="center">
   一个 TaskPane 兼容 <b>WPS 文字 / 表格 / 演示 / PDF</b> 四端的 AI 助手，挂多家 AI（Codex / OpenAI / Anthropic / Gemini / Azure / OpenAI 兼容），AI 通过工具调用<b>直接读写文档</b>。
@@ -35,7 +35,7 @@
 
 | 🖥 多宿主统一 | 🔌 多协议接入 | ✍️ 直接读写文档 |
 |---|---|---|
-| 文字 / 表格 / 演示 / PDF 四端共用一套 TaskPane，宿主自动分发 | Codex / OpenAI / Anthropic / Gemini / Azure / OpenAI Responses + 本地 Ollama，可同时挂多家随时切 | AI 通过工具调用直接操作文档；**预览确认** / **AI 直接写入** 两档安全 |
+| 文字 / 表格 / 演示 / PDF 四端共用一套 TaskPane，宿主自动分发 | Codex / OpenAI / Anthropic / Gemini / Azure / OpenAI Responses + 本地 Ollama，可配置多家、同一时间启用一家 | AI 通过工具调用直接操作文档；**预览确认** / **AI 直接写入** 两档安全 |
 
 ## 🧭 架构
 
@@ -66,18 +66,18 @@ WPS 宿主（文字/表格/演示/PDF）
 
 ### 2. 安装
 
-- **Windows**：先临时关掉杀软实时防护 → 双击 setup.exe → 完全退出 WPS → 重开 WPS，ribbon 出现「灵犀AI」标签即成功
+- **Windows**：先临时关掉杀软实时防护 → 双击 setup.exe → 完全退出 WPS → 重开 WPS，ribbon 出现「志特AI」标签即成功
 - **macOS**：**右键 .pkg → 打开**（Gatekeeper 拦未签名包，双击会报错）→ 输系统密码 → 完全退出 WPS → 重开 WPS
 
 详细步骤（卸载 / 升级 / 故障排查 / 安装器构建）见 [INSTALL.md](INSTALL.md)。
 
 ### 3. 配置 AI 模型
 
-1. ribbon 点「打开灵犀AI」→ TaskPane 右侧弹出 → ⚙ 设置（独立弹窗）
+1. ribbon 点「打开志特AI」→ TaskPane 右侧弹出 → ⚙ 设置（独立弹窗）
 2. 「聊天模型」面板 → **+ 新增供应商** → 15 条预设里选一家（baseURL 已预填）
-3. 填 API Key → ⚡ 测试 → 关弹窗 → header 下拉挑模型开聊
+3. 填 API Key、确认「默认模型」→ ⚡ 测试 → 勾上「启用」→ 关弹窗开聊
 
-**可同时挂多家**：DeepSeek + Anthropic + Codex + Gemini 一起开，下拉里随时切。
+**可配置多家，同一时间只启用一家**：DeepSeek / Anthropic / Codex / Gemini 都可以先配好；聊天固定使用已启用那家的「默认模型」，在设置里勾选另一家即切换。
 
 | 预设 | 说明 |
 |---|---|
@@ -106,7 +106,7 @@ WPS 宿主（文字/表格/演示/PDF）
 
 ### AI 接入
 
-- 同时挂多家 chat provider，header 下拉按 provider 分组随时切
+- 可配置多家 chat provider，同一时间只启用一家；聊天固定用它的默认模型（面板上不再有模型下拉）
 - **6 类协议原生适配**：Codex / OpenAI Chat Completions / Anthropic Messages / **Gemini** / **Azure OpenAI** / **通用 OpenAI Responses**，外加各家 OpenAI 兼容聚合器 —— 共 15 条预设 + 一条自定义
 - 思考（reasoning）**按到达顺序实时回显**，按 provider 映射 `thinking.budget_tokens` / `reasoning_effort` / `reasoning.effort` / `thinkingConfig`
 - 模型能力图标：🖼 图像 / 📄 PDF / 💡 思考（models.dev 目录 + 名字正则兜底）
@@ -125,7 +125,16 @@ WPS 宿主（文字/表格/演示/PDF）
 - 多对话管理 + 历史独立弹窗（今天 / 7 天内 / 7 天前 分组）
 - 生图独立 tab；工具调用气泡默认只显示尾部参数预览，结果到达即收起（设置里可开完整 JSON 日志）
 - AI 工作期间文档锁定 banner + 进度合并
-- 系统提示词可定制；「技能」（内置 4 套 + 导入 .md/.txt）按场景拼进 system prompt
+- 系统提示词可定制；「技能」（自行导入，不带内置技能）：system prompt 只列技能名和简介，AI 命中后按需加载正文
+- 多文件技能：导入含 `SKILL.md` 的文件夹 / .zip，`references/` 等参考文件由 AI 按需读取；设置里以目录树查看，可编辑 / 新建 / 删除文件（不支持执行 `scripts/`）
+- 自定义技能存在磁盘 `~/.lingxi-ai/skills/<技能名>/`，可直接用编辑器改或把文件夹拷进去，下一轮对话即生效；删除的技能挪到同目录的 `.trash/`
+
+### 参考文档
+
+- 在 AI 面板添加参考文档（背景资料、材料清单等），AI 处理当前文档时按需读取；适合合同评审这类"对照资料审一份文档"的场景
+- 两种添加方式：从电脑选择文件（可多选，选完自动在 WPS 中打开），或从 WPS 已打开的文档中勾选
+- 读取自动选路：文档已在 WPS 打开 → 委托它所在组件（文字 / 表格 / 演示）的插件读取实时内容（含未保存修改）；否则由本地服务解析磁盘文件（.docx / .xlsx / .pptx / .pdf / 文本）
+- 老格式（.doc / .xls / .ppt / WPS 格式）只能在 WPS 中打开后读取
 
 ### 操作安全
 
@@ -173,10 +182,11 @@ plugin/
 │   ├── mcp-client.js / mcp-client-ui.js   # MCP Client（plugin 侧）
 │   ├── mcp-bridge.js               # MCP Server 桥（plugin 侧）
 │   ├── history.js                  # 改动记录 + 快照
-│   └── skills.js                   # 技能（内置 + 导入）
+│   └── skills.js                   # 技能（导入 / 磁盘存储）
 └── tools/
     ├── proxy-server.js             # CORS 代理 + 文件 / 备份 / MCP 端点
     ├── mcp-client-manager.js       # MCP Client 连接管理（stdio / SSE，Node 侧）
+    ├── skill-store.js / skill-zip.js   # 技能磁盘存储（~/.lingxi-ai/skills）+ 技能包解压
     ├── mcp-server.js               # stdio MCP server（供外部 agent 用）
     ├── serve-permanent.js          # 永久模式静态服务器
     ├── build-variants.js           # 多宿主变体打包
@@ -209,7 +219,7 @@ registry.registerTool({
 
 **加新 provider** —— 新建 `js/providers/<name>.js`，实现 `runWithTools` 等接口后 `WpsAiProviderRegistry.register("<type>", createFn)` 自注册，主链路零改动（详见 `gemini.js` / `openai-responses.js`）。
 
-**加新 ribbon 按钮** —— 编辑 `js/quick-actions.js`，跑 `npm run gen-ribbon`。
+**ribbon 只保留「打开志特AI」一个按钮**，由 `tools/gen-ribbon.js` 生成（`npm run gen-ribbon`）。`js/quick-actions.js` 是 TaskPane 内快捷指令的数据源，不再铺到 ribbon 上。
 
 **永久模式打包** —— `node tools/build-variants.js --out <dist 目录>`。
 
@@ -252,4 +262,4 @@ registry.registerTool({
 
 本项目基于 **[MIT License](LICENSE)** 开源 —— 可自由使用、修改、分发、商用，保留版权与许可声明即可。
 
-> 品牌名称「灵犀AI」、公众号二维码及截图等资产不在 MIT 授权范围内，仅用于标识本项目。
+> 品牌名称「志特AI」、公众号二维码及截图等资产不在 MIT 授权范围内，仅用于标识本项目。

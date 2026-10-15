@@ -1,4 +1,4 @@
-# Lingxi AI · WPS Office Multi-host AI Assistant
+# GETO AI · WPS Office Multi-host AI Assistant
 
 **🌐 Language**: [中文](README.md) · **English**
 
@@ -29,18 +29,18 @@ Both bundle Node runtime — **no separate Node install needed**.
 
 ### 2. Install
 
-- **Windows**: Temporarily disable antivirus real-time protection → double-click setup.exe → fully quit WPS → reopen WPS. The "灵犀AI" ribbon tab means success.
+- **Windows**: Temporarily disable antivirus real-time protection → double-click setup.exe → fully quit WPS → reopen WPS. The "志特AI" ribbon tab means success.
 - **macOS**: **Right-click .pkg → Open** (Gatekeeper blocks unsigned packages on double-click) → enter system password → fully quit WPS → reopen.
 
 For details (uninstall / upgrade / troubleshooting / installer build) see [INSTALL.md](INSTALL.md).
 
 ### 3. Configure AI
 
-1. Click "Open LingxiAI" in the ribbon → TaskPane opens on the right → ⚙ Settings (standalone 960×720 dialog)
+1. Click "Open GETO AI" in the ribbon → TaskPane opens on the right → ⚙ Settings (standalone 960×720 dialog)
 2. Chat panel → **+ Add Provider** → pick one of 12 presets (baseURL pre-filled)
-3. Fill in API Key → ⚡ Test → close dialog → pick a model from the header dropdown and chat
+3. Fill in API Key, check the "default model" → ⚡ Test → tick "Enable" → close dialog and chat
 
-**Multiple providers concurrently**: DeepSeek + Anthropic + Codex + Kimi can all be enabled; switch freely from the dropdown.
+**Configure several, enable one at a time**: DeepSeek / Anthropic / Codex / Kimi can all be set up in advance; chat always uses the enabled provider's default model, and ticking another provider in Settings switches to it.
 
 | Preset | baseURL (pre-filled) |
 |---|---|
@@ -69,7 +69,7 @@ Not supported: WebOffice, mobile WPS, lower-versioned desktop clients — JSAPI 
 ### Cross-host
 
 **AI Integration**
-- Multiple chat providers concurrently (Codex / Anthropic / 11 OpenAI-compatible + custom); header dropdown grouped by provider
+- Multiple chat providers can be configured (Codex / Anthropic / 11 OpenAI-compatible + custom); only one enabled at a time, chat uses its default model (no model dropdown in the pane)
 - 3 capability icons per model: 🖼 image / 📄 PDF / 💡 thinking
 - Adjustable thinking budget (low / medium / high / off) mapped per protocol: `thinking.budget_tokens` / `reasoning_effort` / `reasoning.effort`
 - PDF as multimodal attachment: Claude uses document block / OpenAI Files API / Codex input_file
@@ -87,7 +87,9 @@ Not supported: WebOffice, mobile WPS, lower-versioned desktop clients — JSAPI 
 - Progress bar includes the most recent reasoning/output tail
 - AI-working doc-lock banner merged with progress indicator (no longer visually stacked)
 - Attachments: image / PDF / text files
-- System prompt customizable; supports "Skills" (4 built-in + .md/.txt import) injected into system prompt by scenario
+- System prompt customizable; "Skills" (imported by you; none are built in): the system prompt lists skill names and descriptions only, and the AI loads the body on demand
+- Multi-file skills: import a folder / .zip containing `SKILL.md`; reference files such as `references/` are read by the AI on demand. Settings shows them as a file tree where files can be edited / created / deleted (running `scripts/` is not supported)
+- Custom skills live on disk at `~/.lingxi-ai/skills/<skill name>/`; edit them with any editor or drop a folder in and they take effect on the next chat turn. Deleted skills are moved to `.trash/` in the same directory
 
 **Safety**
 - Hard doc lock while AI works (Word `Document.Protect` / Excel `UserInterfaceOnly`)
@@ -95,6 +97,13 @@ Not supported: WebOffice, mobile WPS, lower-versioned desktop clients — JSAPI 
 - Per-turn document backup + one-click revert (auto-GC last 20)
 - Change Log tab: grouped by file, expand to see args / before/after snapshots / errors
 - Config import/export (API Key encrypted + version compat)
+
+### Reference documents
+
+- Add reference documents (background material, item lists, etc.) in the AI pane; the AI reads them on demand while working on the current document — e.g. reviewing a contract against supporting material
+- Add them by choosing files from your computer (multiple selection; they open in WPS automatically) or by ticking documents already open in WPS
+- Reading picks a route automatically: if the document is open in WPS, the add-in in its component (Writer / Spreadsheet / Presentation) reads the live content, including unsaved changes; otherwise the local service parses the file on disk (.docx / .xlsx / .pptx / .pdf / text)
+- Legacy formats (.doc / .xls / .ppt / WPS formats) can only be read after opening them in WPS
 
 ### Writer / Spreadsheet / Presentation / PDF
 
@@ -129,7 +138,7 @@ plugin/
 │   ├── tools/*                    # AI-callable tools (grouped by host + registry)
 │   ├── html-templates/*           # template system (cache / components / renderer / studio)
 │   ├── mcp-bridge.js              # MCP bridge (plugin side)
-│   └── skills.js                  # skills (built-in + import)
+│   └── skills.js                  # skills (import / disk storage)
 └── tools/
     ├── proxy-server.js            # CORS proxy + file ops + backup + MCP endpoints
     ├── mcp-server.js              # stdio MCP server (for external agents)
@@ -161,7 +170,7 @@ registry.registerTool({
 });
 ```
 
-**Add a ribbon button** — edit `js/quick-actions.js`, then `npm run gen-ribbon`.
+**The ribbon keeps a single "Open GETO AI" button**, generated by `tools/gen-ribbon.js` (`npm run gen-ribbon`). `js/quick-actions.js` is the data source for the quick actions inside the TaskPane and is no longer laid out on the ribbon.
 
 **Repack permanent mode** — `node tools/build-variants.js --out C:/path/dist-permanent`.
 

@@ -1,0 +1,7 @@
+{
+  "name": "pdfjs-dist",
+  "version": "3.11.174",
+  "license": "Apache-2.0",
+  "description": "Vendored subset of pdfjs-dist 3.11.174 (legacy/build/pdf.js + pdf.worker.js + cmaps) so the local proxy can extract PDF text in packaged builds, which ship without node_modules. Source: https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-3.11.174.tgz (sha512 matches package-lock.json).",
+  "main": "legacy/build/pdf.js"
+}

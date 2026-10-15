@@ -1,4 +1,4 @@
-; 灵犀AI Windows 安装器 - Inno Setup 5.5+
+; 志特AI Windows 安装器 - Inno Setup 5.5+
 ;
 ; 用 Inno Setup Compiler 编译:
 ;   "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\lingxi-ai.iss
@@ -9,8 +9,8 @@
 ;
 ; 产物：dist\lingxi-ai-1.4.7-setup.exe
 
-#define MyAppName "灵犀AI"
-#define MyAppNameEn "Lingxi AI"
+#define MyAppName "志特AI"
+#define MyAppNameEn "GETO AI"
 #define MyAppVersion "1.4.7"
 #define MyAppPublisher "lingxi-ai"
 #define MyAppURL "https://github.com/lewis-hui1202/WPS-AI"
@@ -51,6 +51,10 @@ Source: "..\INSTALL.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\卸载{#MyAppName}"; Filename: "{uninstallexe}"
+
+[InstallDelete]
+; 产品改名（灵犀AI → 志特AI）：开始菜单文件夹随 MyAppName 变了，升级时删掉旧名字的文件夹，避免留两个
+Type: filesandordirs; Name: "{autoprograms}\灵犀AI"
 
 [Run]
 ; 装完后执行 post-install 脚本：建 ~/.lingxi-ai 变体、publish.xml、Run 键、起后台服务
@@ -111,7 +115,7 @@ begin
     LogPath := ExpandConstant('{%USERPROFILE}\.lingxi-ai\install.log');
     if not FileExists(PublishPath) then begin
       MsgBox(
-        'post-install 没能写出 publish.xml,WPS 加载项不会显示「灵犀AI」。' + #13#10 + #13#10 +
+        'post-install 没能写出 publish.xml,WPS 加载项不会显示「志特AI」。' + #13#10 + #13#10 +
         '日志在:' + #13#10 +
         LogPath + #13#10 + #13#10 +
         '常见原因:杀毒/PowerShell 策略拦了脚本,或 WPS 正在运行占住了目录。请把日志发给维护者。',

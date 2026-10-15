@@ -25,6 +25,9 @@ installer-mac/scripts/postinstall text eol=lf
 *.xml        text
 *.svg        text
 
+# pdfjs 的压缩 CMap（plugin/tools/vendor/pdfjs-dist/cmaps，解析中文等 CID 字体 PDF 用）
+*.bcmap      binary
+
 # 图片二进制
 *.png        binary
 *.jpg        binary

@@ -116,12 +116,7 @@
   // 若还没 assign 就写一条 UUID 进去。msoPropertyTypeString = 4（Office 常量）。
   // 只写内存里的 property，不主动 Save —— 让 captureCurrentDoc 里 doc.Save() 帮忙持久化，
   // 避免额外一次盘操作。
-  function ensureDocId() {
-    const existing = readDocId();
-    if (existing) return existing;
-    const { doc, host } = getActiveDoc();
-    if (!doc || !host || !["wps", "et", "wpp"].includes(host)) return null;
-    const uuid = genUuid();
+  function addDocIdProp(doc, uuid) {
     try {
       const props = doc.CustomDocumentProperties;
       if (!props) return null;
@@ -137,6 +132,25 @@
       }
     } catch (e) { /* 不支持就返回 null，历史退回按路径 key */ }
     return null;
+  }
+
+  function ensureDocId() {
+    const existing = readDocId();
+    if (existing) return existing;
+    const { doc, host } = getActiveDoc();
+    if (!doc || !host || !["wps", "et", "wpp"].includes(host)) return null;
+    return addDocIdProp(doc, genUuid());
+  }
+
+  // 把一个已知的 id 补回当前文档（文档已有 id 时不动）。用于「同一个文件被 WPS 从磁盘重新载入」：
+  // id 当初只写在内存里、没存盘，重新载入后就丢了，补回去才能接着用原来的对话和改动记录。
+  function writeDocId(uuid) {
+    if (!uuid) return null;
+    const existing = readDocId();
+    if (existing) return existing === uuid ? uuid : null;
+    const { doc, host } = getActiveDoc();
+    if (!doc || !host || !["wps", "et", "wpp"].includes(host)) return null;
+    return addDocIdProp(doc, String(uuid));
   }
 
   // 一站式返回文档身份：docId 优先（跨重命名 / Save As 稳定），docPath 兜底。
@@ -206,7 +220,7 @@
     try {
       const ur = app.UndoRecord;
       if (ur && typeof ur.StartCustomRecord === "function") {
-        ur.StartCustomRecord(name || "灵犀AI 操作");
+        ur.StartCustomRecord(name || "志特AI 操作");
         undoRecordOpen = true;
         return true;
       }
@@ -275,7 +289,7 @@
 
     // 2. 开 UndoRecord(在 Save 之前,这样 Save 不会进 undo 组里 — 不影响)
     //    这一步是"内容层回退"的关键。开成功就标记 undoGroup=true,回退时优先走 Undo。
-    const undoGroup = tryStartUndoGroup(app, `灵犀AI - ${new Date().toISOString()}`);
+    const undoGroup = tryStartUndoGroup(app, `志特AI - ${new Date().toISOString()}`);
 
     // 3. 补/取文档身份 UUID（写进 CustomDocumentProperties）。
     //    在 Save 之前 assign，Save 会顺手把 property 持久化到 .docx / .xlsx / .pptx 里，
@@ -488,6 +502,7 @@
     // 文档身份（跨重命名 / Save As / 跨机同步稳定）
     readDocId,
     ensureDocId,
+    writeDocId,
     getCurrentDocKey
   };
 })(window);

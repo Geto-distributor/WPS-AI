@@ -110,6 +110,14 @@
       const sk = tool && tool.args && tool.args.name;
       return sk ? (i18nText("技能") + "：" + sk) : i18nText("调用技能");
     }
+    if (n === "read_skill_file") {
+      const fp = tool && tool.args && tool.args.path;
+      return i18nText("技能文件") + (fp ? "：" + fp : "");
+    }
+    if (n === "read_reference_doc") {
+      const fp = tool && tool.args && tool.args.path;
+      return i18nText("读取参考文档") + (fp ? "：" + String(fp).split(/[\\/]/).pop() : "");
+    }
     if (n === "save_skill") {
       const sk = tool && tool.args && tool.args.name;
       return i18nText("保存技能") + (sk ? "：" + sk : "");
@@ -440,7 +448,7 @@
 
     const label = doc.createElement("div");
     label.className = "tl-label";
-    label.textContent = "灵犀AI";
+    label.textContent = "志特AI";
     wrap.appendChild(label);
 
     const metaEl = doc.createElement("div");

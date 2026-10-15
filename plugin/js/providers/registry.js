@@ -3,7 +3,7 @@
 
   const SETTINGS_KEY = "wps_ai_provider_settings_v1";
 
-  // 灵犀 PPT 设计宪法（每次配版前自检）——提炼自 frontend-slides SKILL.md 的反 AI slop 准则。
+  // 志特 PPT 设计宪法（每次配版前自检）——提炼自 frontend-slides SKILL.md 的反 AI slop 准则。
   // 同时由 wpp_get_style_preset（工具返回值）和 app.js（拼入 system prompt）两处消费。
   const DESIGN_GUIDELINES = Object.freeze([
     "一页一意：每页只表达一个核心观点，宁可拆页也不堆。",
@@ -122,7 +122,7 @@
     // 老字段 activeProvider / providers.* 仍然保留以兼容历史导入文件，但新版用
     // chatProviders + activeChatModel 这一对：
     //   chatProviders: 用户配置的所有聊天供应商（含 codex/anthropic/多家 openai 兼容）
-    //   activeChatModel: 当前选中的「<providerId>::<modelId>」组合，header 下拉直接读它
+    //   activeChatModel: 当前选中的「<providerId>::<modelId>」组合（固定跟随唯一启用的那家的默认模型）
     activeProvider: "codex",
     chatProviders: DEFAULT_CHAT_PROVIDERS.map((p) => Object.assign({}, p)),
     activeChatModel: "",
@@ -141,7 +141,7 @@
     // 默认 true：让用户能用 WPS 原生工具选中文本框继续微调；之前实验阶段默认 false
     // 等于把功能藏起来了，对正常用户没意义。
     splitLayersOnInsert: true,
-    // 修订模式（仅 WPS 文字）：开后 AI 改动走 Word 原生修订，作者标为「灵犀AI」，可逐条接受/回撤
+    // 修订模式（仅 WPS 文字）：开后 AI 改动走 Word 原生修订，作者标为「志特AI」，可逐条接受/回撤
     reviseMode: false,
     // 用户可配置的系统提示词（追加到每轮 chat 的 system message 里）
     systemPrompt: DEFAULT_SYSTEM_PROMPT,
@@ -958,6 +958,18 @@
         merged.chatProviders = list;
       }
       merged.activeChatModel = typeof parsed.activeChatModel === "string" ? parsed.activeChatModel : "";
+      // 兜底互斥：聊天供应商任何时刻只允许一条 enabled=true（面板上没有模型下拉，固定用启用的这家）。
+      // 存量数据里多家同时启用时：保留 activeChatModel 指向的那家，否则保留排在最前的那家。
+      if (Array.isArray(merged.chatProviders)) {
+        const enabled = merged.chatProviders.filter((p) => p && p.enabled);
+        if (enabled.length > 1) {
+          const { providerId } = parseActiveChatModel(merged.activeChatModel);
+          const keep = enabled.find((p) => p.id === providerId) || enabled[0];
+          merged.chatProviders = merged.chatProviders.map((p) => (
+            p && p.enabled && p !== keep ? Object.assign({}, p, { enabled: false }) : p
+          ));
+        }
+      }
 
       return merged;
     } catch (error) {

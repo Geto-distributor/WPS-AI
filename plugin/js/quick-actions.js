@@ -66,10 +66,6 @@
       { key: "qa", label: "文档问答", category: "document", prefill: true,
         prompt: "请基于当前文档内容回答这个问题：[在这里写你想问的问题]" },
 
-      { key: "image", label: "AI 生成图片", category: "image", prefill: true,
-        prompt: "请生成一张关于 [描述要生成的图片内容，比如：科技感的报告封面，深蓝色背景] 的图片，先调用 generate_image 拿到 URL，再用 wps_insert_image 插入到当前光标位置。" },
-      { key: "materialLibrary", label: "素材库", category: "image", modal: "materialLibrary",
-        prompt: "打开生图素材库。" },
 
       { key: "suggest", label: "智能推荐操作", category: "smart",
         prompt: "请先用 wps_read_document 读一下整篇文档（如果太长就读前 2000 字），分析它的内容类型、风格、语气、潜在问题。基于这些观察调用 suggest_quick_actions 工具给我 5-8 条针对这篇文档具体可执行的操作建议。每条 label 不超过 12 个字，prompt 要明确指定调用什么工具完成什么。完成 suggest_quick_actions 后简单说一句你看到了什么。" }
@@ -111,10 +107,6 @@
       { key: "sparkline", label: "迷你图", category: "chart",
         prompt: "请为每行数据生成趋势迷你图：先用 et_get_sheet_info 找到数据区与放置列（通常在数据右侧空列），再用 et_add_sparkline（type=line 折线，location=放迷你图的列如 F2:F10，dataRange=对应每行的数据）。完成后说明放在哪列。" },
 
-      { key: "image", label: "AI 生成图片", category: "image", prefill: true,
-        prompt: "请生成一张关于 [描述要生成的图片内容，比如：数据主题的装饰插图、报表封面] 的图片：先调用 generate_image 拿到图片 URL，再用 et_insert_image 插入——它默认放到当前选中单元格的左上角。完成后告诉我插到哪里了。" },
-      { key: "materialLibrary", label: "素材库", category: "image", modal: "materialLibrary",
-        prompt: "打开生图素材库。" },
 
       { key: "suggest", label: "智能推荐操作", category: "smart",
         prompt: "请先用 et_get_sheet_info 看一下活动工作表的维度，再用 et_read_range 读取 UsedRange 前 20 行（如果数据少于 20 行就全部）。基于看到的数据特征（列名、值类型、是否有空行、是否有数字等），调用 suggest_quick_actions 工具给我 5-8 条针对这个表的具体可执行操作建议。每条 label 不超过 12 个字，prompt 是一句完整指令，用到的工具名要明确写出来。完成 suggest_quick_actions 后简单说一句你看到了什么。" }
@@ -131,10 +123,6 @@
         prompt: "请在当前位置之后插入一张新幻灯片，主题是 [描述这一页的内容，比如：第二季度销售额同比增长 23%，给出关键数据和原因]。流程：wpp_add_slide(layout='text', title=..., body=...)，根据需要再 wpp_add_text_box 补充。" },
       { key: "genMany", label: "AI 生成多页", category: "generate", prefill: true,
         prompt: "请围绕主题 [描述主题] 生成 [3-5] 页幻灯片，结构层次清晰（如：概述 → 数据 → 案例 → 结论）。每一页用 wpp_add_slide(title, body) 插入，最后告诉我各页大致内容。" },
-      { key: "image", label: "AI 生成图片", category: "generate", prefill: true,
-        prompt: "请生成一张关于 [描述图片，如：未来感的科技城市夜景，蓝紫色调] 的图片，并插入到当前幻灯片：先调 generate_image 拿到 URL，再用 wpp_add_picture(fileName=URL, left=80, top=120, width=560) 放到合适位置。" },
-      { key: "materialLibrary", label: "素材库", category: "generate", modal: "materialLibrary",
-        prompt: "打开生图素材库。" },
 
       { key: "helpWrite", label: "帮我写", category: "rewrite", prefill: true,
         prompt: "请围绕 [描述主题] 帮我写一段适合放在 PPT 上的内容。如果要替换某个形状的文字，先 wpp_read_slide 找到目标形状的 index，再 wpp_replace_shape_text 写入；如果是新内容，用 wpp_add_text_box 在当前页加一个文本框。" },

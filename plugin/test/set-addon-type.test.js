@@ -16,7 +16,7 @@ test("set-addon-type updates package.json and manifest.json addonType", (t) => {
     version: "1.4.4"
   }, null, 2));
   fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({
-    name: "灵犀AI",
+    name: "志特AI",
     addonType: "pdf",
     version: "1.4.4",
     ribbon: "ribbon.xml"

@@ -3764,7 +3764,7 @@ html.settings-mode #presetPickerModal { z-index: 1500; }
 .tab-bar-action { flex: none; white-space: nowrap; }
 
 @media (max-width: 720px) {
-  /* Header：藏"灵犀AI"四个字（logo 已经够识别），让 model select / authBadge 拿更多宽度 */
+  /* Header：藏"志特AI"四个字（logo 已经够识别），让 model select / authBadge 拿更多宽度 */
   .brand-name { display: none; }
   /* authBadge"未配置/已登录"这种状态信息次要，在 modelSelect 旁边藏掉 */
   #authBadge { display: none; }
@@ -8494,6 +8494,110 @@ body.pure-mode .image-gen-panel.hidden { display: none; }
   padding: 4px 8px;
 }
 .skill-preview-content.markdown th { background: #eef1f5; }
+/* 技能详情：左目录树 + 右文件查看/编辑 */
+.skill-detail-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+}
+.skill-tree-pane {
+  flex: none;
+  width: 200px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.skill-tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 0;
+  background: #f7f8fb;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+.skill-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  white-space: nowrap;
+  color: var(--text);
+  cursor: default;
+}
+.skill-tree-row.dir { color: var(--text-secondary); font-weight: 600; }
+.skill-tree-row[data-dir], .skill-tree-row.file { cursor: pointer; }
+.skill-tree-row[data-dir]:hover, .skill-tree-row.file:hover { background: var(--divider); }
+.skill-tree-row.selected { background: var(--primary-soft); color: var(--primary); }
+.skill-tree-row.draft .skill-tree-label { font-style: italic; }
+.skill-tree-icon { flex: none; width: 10px; font-size: 10px; color: var(--muted); }
+.skill-tree-label { overflow: hidden; text-overflow: ellipsis; }
+.skill-tree-new { display: flex; gap: 4px; }
+.skill-tree-new.hidden, .skill-tree-add.hidden { display: none; }
+.skill-tree-new-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.skill-tree-pane .ghost-btn { font-size: 11px; padding: 4px 8px; }
+.skill-file-pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.skill-file-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.skill-file-path {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  word-break: break-all;
+}
+.skill-file-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+/* .primary-btn 全局带 margin-top:10px + 阴影，和并排的 ghost-btn 对不齐，这里抹平 */
+.skill-file-actions .ghost-btn, .skill-file-actions .primary-btn {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 4px 10px;
+  box-shadow: none;
+}
+.skill-file-actions .hidden, .skill-preview-content.hidden, .skill-file-editor.hidden { display: none; }
+.skill-file-actions .ghost-btn.danger:hover { background: #fee; color: #c4302b; }
+.skill-file-editor {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  padding: 12px 14px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text);
+  background: #fff;
+  outline: none;
+}
+/* 面板窄（TaskPane 内嵌设置）时上下排：目录树在上、文件在下 */
+@media (max-width: 560px) {
+  .skill-detail-main { flex-direction: column; }
+  .skill-tree-pane { width: auto; max-height: 30%; }
+}
 .skill-preview-loading {
   flex: none;
   font-size: 12px;
@@ -9523,3 +9627,147 @@ body.pure-mode .image-gen-panel.hidden { display: none; }
 .thinking-menu-item:hover { background: var(--surface, #f5f7fa); }
 .thinking-menu-item.active { color: var(--primary, #2563eb); }
 .thinking-menu-check { width: 14px; flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--primary, #2563eb); }
+
+/* 已下线的设置面板（见 taskpane.html）：无论别处怎么切 class 都不显示 */
+.settings-panel-retired { display: none !important; }
+
+/* 技能页工具行：左边搜索框（限宽，不撑满整行），右边「导入技能」 */
+.skills-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.skills-toolbar .skills-search-wrap { flex: 0 1 280px; min-width: 0; }
+.skills-toolbar .skill-import-btn { flex: none; margin: 0 0 0 auto; }
+/* 「导入技能」下拉：选文件 / 选文件夹（浏览器的文件选择框不能同时选文件和文件夹，所以分两项） */
+.skill-import-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 190px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #d1d9e6);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .15);
+}
+.skill-import-menu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text, #1f2329);
+  cursor: pointer;
+  font-family: inherit;
+}
+.skill-import-menu-item:hover { background: var(--surface, #f5f7fa); }
+.skill-import-menu-item small { font-size: 11px; color: var(--muted, #6b7280); }
+
+/* 「生图」页签已下线（generate_image 工具已删除）：按钮留在 DOM 里只为不动页签切换逻辑 */
+.tab-btn-retired { display: none !important; }
+
+/* ---------- 参考文档（chip 条 + 添加菜单 + 已打开文档选择框） ---------- */
+.chat-ref-docs {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  margin: 4px 0 0;
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.chat-ref-docs.hidden { display: none; }
+.chat-ref-docs-label { font-size: 11px; color: var(--muted); margin-right: 2px; }
+.chat-ref-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 240px;
+  padding: 3px 4px 3px 8px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+}
+.chat-ref-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+.chat-ref-chip-name:hover { color: var(--primary); text-decoration: underline; }
+.chat-ref-chip-tag {
+  flex: none;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: #eef1f5;
+  color: var(--muted);
+}
+.chat-ref-chip-tag.live { background: #e6f4ea; color: #1e7b34; }
+.chat-ref-chip-tag.warn { background: #fff4e5; color: #a15c00; }
+.chat-ref-chip-remove {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
+}
+.chat-ref-chip-remove:hover { background: var(--divider); color: var(--text); }
+.ref-docs-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 220px;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg, #fff);
+  border: 1px solid var(--border, #d1d9e6);
+  border-radius: 8px;
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, .15);
+}
+.ref-docs-menu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text, #1f2329);
+  cursor: pointer;
+  font-family: inherit;
+}
+.ref-docs-menu-item:hover { background: var(--surface, #f5f7fa); }
+.ref-docs-menu-item small { font-size: 11px; color: var(--muted, #6b7280); }
+.ref-docs-menu-title { font-size: 11px; font-weight: 600; color: var(--muted); padding: 6px 10px 4px; }
+.ref-docs-open-list { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; }
+.ref-docs-open-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; border-radius: 6px; }
+.ref-docs-open-item:hover { background: var(--surface, #f5f7fa); }
+.ref-docs-open-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ref-docs-open-item small { flex: none; color: var(--muted); font-size: 11px; }
+.ref-docs-empty { padding: 10px; font-size: 12px; color: var(--muted); }
+.ref-docs-menu-actions { display: flex; justify-content: flex-end; gap: 6px; padding: 6px 6px 2px; }
+.ref-docs-menu-actions .ghost-btn, .ref-docs-menu-actions .primary-btn { margin: 0; font-size: 12px; padding: 4px 12px; box-shadow: none; }
