@@ -27,9 +27,10 @@
     return pre + encodeURIComponent(url);
   }
 
-  // 内置技能：目前一条都不带（原来的 PPT 设计师 / Word 润色 / Excel 数据助手 / PDF 阅读 / UI-UX Pro Max 已移除）。
-  // 列表、启用状态等逻辑仍按「内置 → 自定义」处理，以后要加回内置技能往这个数组里放即可。
+  // 代码里写死的内置技能：目前没有。内置技能改为随包的技能目录（plugin/skills/<目录>/），
+  // 安装插件时会顺带把 plugin/skills/<名字>/ 装进技能目录（tools/install-bundled-skills.js），装好后就是普通技能。
   const BUILTIN = [];
+  const BUNDLED_SEEN_KEY = "lingxi_skills_bundled_seen_v1"; // 已处理过的「安装时顺带装的技能」（名字@安装时间）：刚装上时默认启用一次
 
   // 懒加载缓存：内容来源(url/contentPath) → 已 fetch 的 content
   const _contentCache = new Map();
@@ -200,6 +201,22 @@
     _cache = entries;
     _snapshot = snapshot;
     _backend = "disk";
+    enableNewBundled(json.preinstalled);
+  }
+
+  // 安装时顺带装上的技能默认启用一次：按「名字@安装时间」记，删掉后重装插件再装上的，会再启用一次；
+  // 之后用户关掉、改名都不再干预
+  function enableNewBundled(preinstalled) {
+    const items = Array.isArray(preinstalled) ? preinstalled : [];
+    if (!items.length) return;
+    let seen = [];
+    try { seen = JSON.parse(global.WpsAiStore.getItem(BUNDLED_SEEN_KEY) || "[]") || []; } catch (e) { seen = []; }
+    const fresh = items.filter((it) => it && it.installedAt && !seen.includes(`${it.name}@${it.installedAt}`));
+    if (!fresh.length) return;
+    const enabled = readEnabledIds();
+    fresh.forEach((it) => { if (_cache.some((e) => e.dir === it.dir)) enabled.add(diskId(it.dir)); });
+    writeEnabledIds(enabled);
+    try { global.WpsAiStore.setItem(BUNDLED_SEEN_KEY, JSON.stringify(seen.concat(fresh.map((it) => `${it.name}@${it.installedAt}`)))); } catch (e) {}
   }
 
   // 把 KV 里的老技能搬到磁盘目录，只做一次。启用状态跟着换成新 id。KV 里的原数据不删，留作备份。

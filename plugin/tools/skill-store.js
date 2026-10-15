@@ -14,6 +14,10 @@ const LIMITS = {
 };
 const TRASH_DIR = ".trash";
 const MAIN_FILE = "SKILL.md";
+// 安装插件时顺带装的技能（plugin/skills/<名字>/）：装好后和用户上传的技能没有区别。
+// 记在技能根目录的这个文件里（以 . 开头，不会被当成技能）：{ 名字: { dir, installedAt } }，
+// 只用来让前端对刚装上的默认启用一次。「技能还在不在」只看 <名字> 这个目录。
+const PREINSTALL_RECORD = ".preinstalled.json";
 
 function defaultRoot() {
   return process.env.LINGXI_SKILLS_DIR || path.join(os.homedir(), ".lingxi-ai", "skills");
@@ -97,7 +101,9 @@ function createSkillStore(rootDir) {
       try { mtime = fs.statSync(path.join(base, mainName)).mtimeMs; } catch (e) {}
       skills.push({ dir: ent.name, mtime, files: readSkillFiles(base) });
     }
-    return { root, skills };
+    const record = readPreinstallRecord();
+    const preinstalled = Object.keys(record).map((name) => ({ name, dir: record[name].dir, installedAt: record[name].installedAt }));
+    return { root, skills, preinstalled };
   }
 
   function writeFile(dir, rel, content) {
@@ -162,7 +168,35 @@ function createSkillStore(rootDir) {
     return true;
   }
 
-  return { root, list, writeFile, put, deleteFile, rename, remove };
+  function readPreinstallRecord() {
+    try {
+      const v = JSON.parse(fs.readFileSync(path.join(root, PREINSTALL_RECORD), "utf8"));
+      if (!v || typeof v !== "object") return {};
+      Object.keys(v).forEach((k) => { if (!v[k] || typeof v[k].dir !== "string") delete v[k]; });
+      return v;
+    } catch (e) { return {}; }
+  }
+  function writePreinstallRecord(record) {
+    fs.mkdirSync(root, { recursive: true });
+    fs.writeFileSync(path.join(root, PREINSTALL_RECORD), JSON.stringify(record, null, 2), "utf8");
+  }
+
+  // 安装插件时顺带装一个技能（sourceDir：含 SKILL.md + 参考文件）。只看 <root>/<name> 这个目录：
+  //   - 还在 → 不动（不管是不是用户改过内容、或用户自己的同名技能）
+  //   - 不在（被删掉、改了名、卸载时清掉了 ~/.lingxi-ai）→ 重新装上并记录
+  // 返回 "installed" | "exists"
+  function preinstall(sourceDir, name) {
+    if (fs.existsSync(skillDir(name))) return "exists";
+    const record = readPreinstallRecord();
+    const source = readSkillFiles(path.resolve(sourceDir));
+    if (!source.some((f) => /^skill\.(md|markdown)$/i.test(f.path))) throw new Error(`技能源目录缺少 SKILL.md：${sourceDir}`);
+    source.forEach((f) => writeFile(name, f.path, f.content));
+    record[name] = { dir: name, installedAt: new Date().toISOString() };
+    writePreinstallRecord(record);
+    return "installed";
+  }
+
+  return { root, list, writeFile, put, deleteFile, rename, remove, preinstall };
 }
 
-module.exports = { createSkillStore, defaultRoot, LIMITS };
+module.exports = { createSkillStore, defaultRoot, LIMITS, PREINSTALL_RECORD };

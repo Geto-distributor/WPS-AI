@@ -291,3 +291,81 @@ test("老版本缓存的云端技能：不再出现在列表里，启动时连�
   assert.strictEqual(S.isEnabled("user:留着的"), true);
   assert.strictEqual(S.loadCloud, undefined, "拉取云端技能的接口已不存在");
 });
+
+const BUNDLED_SRC = path.join(__dirname, "..", "skills", "contract-review");
+
+test("安装时顺带装技能：同名目录还在就不动；被删掉 / 改了名 / 技能目录被清空后重装插件会再装上；同名的用户技能不覆盖", () => {
+  const root = tmpRoot();
+  const store = createSkillStore(root);
+  assert.strictEqual(store.preinstall(BUNDLED_SRC, "contract-review"), "installed");
+  assert.strictEqual(store.preinstall(BUNDLED_SRC, "contract-review"), "exists", "重装插件：还在就不动");
+  const rec1 = store.list().preinstalled;
+  assert.deepStrictEqual(rec1.map((r) => [r.name, r.dir]), [["contract-review", "contract-review"]]);
+
+  store.writeFile("contract-review", "references/redlines.md", "# 用户改过的红线");
+  assert.strictEqual(store.preinstall(BUNDLED_SRC, "contract-review"), "exists");
+  assert.match(read(root, "contract-review", "references", "redlines.md"), /用户改过/, "还在时用户的修改原样保留");
+
+  store.rename("contract-review", "合同评审");
+  assert.strictEqual(store.preinstall(BUNDLED_SRC, "contract-review"), "installed", "改了名就当不在了，重装插件再装一份");
+  assert.match(read(root, "合同评审", "references", "redlines.md"), /用户改过/, "改名后的那份不受影响");
+  assert.deepStrictEqual(fs.readdirSync(root).filter((n) => !n.startsWith(".")).sort(), ["contract-review", "合同评审"].sort());
+
+  store.remove("contract-review");
+  assert.strictEqual(store.preinstall(BUNDLED_SRC, "contract-review"), "installed", "删掉后重装插件：重新装上");
+  assert.match(read(root, "contract-review", "references", "redlines.md"), /RL-01/);
+  assert.notStrictEqual(store.list().preinstalled[0].installedAt, rec1[0].installedAt);
+
+  const fresh = tmpRoot(); // 卸载时清掉了 ~/.lingxi-ai：记录也没了，重新装
+  assert.strictEqual(createSkillStore(fresh).preinstall(BUNDLED_SRC, "contract-review"), "installed");
+
+  const other = tmpRoot();
+  const s2 = createSkillStore(other);
+  s2.put("contract-review", [{ path: "SKILL.md", content: "用户自己的" }]);
+  assert.strictEqual(s2.preinstall(BUNDLED_SRC, "contract-review"), "exists");
+  assert.strictEqual(read(other, "contract-review", "SKILL.md"), "用户自己的", "不覆盖用户的同名技能");
+});
+
+test("安装脚本调用的命令行工具：把 plugin/skills 下的技能装进指定目录，重复执行不重复装，出错也不让安装失败", () => {
+  const { spawnSync } = require("node:child_process");
+  const root = tmpRoot();
+  const cli = path.join(__dirname, "..", "tools", "install-bundled-skills.js");
+  const r1 = spawnSync(process.execPath, [cli, "--root", root], { encoding: "utf8" });
+  assert.strictEqual(r1.status, 0);
+  assert.match(r1.stdout, /contract-review: 已安装/);
+  assert.ok(fs.existsSync(path.join(root, "contract-review", "references", "checklists", "铝模销售.md")));
+  const r2 = spawnSync(process.execPath, [cli, "--root", root], { encoding: "utf8" });
+  assert.match(r2.stdout, /contract-review: 已存在，跳过/);
+  const r3 = spawnSync(process.execPath, [cli, "--root", root, "--skills", path.join(root, "不存在")], { encoding: "utf8" });
+  assert.strictEqual(r3.status, 0, "源目录不存在也正常退出");
+});
+
+test("安装时顺带装的技能：在插件里就是普通技能，刚装上默认启用一次；可改、可改名、可删", async () => {
+  const root = tmpRoot();
+  const first = loadSkills(root);
+  assert.strictEqual(first.store.preinstall(BUNDLED_SRC, "contract-review"), "installed");
+  await first.S.init();
+  const sk = first.S.get("user:contract-review");
+  assert.ok(sk, "作为普通技能出现在列表里");
+  assert.deepStrictEqual([sk.name, sk.builtin, sk.dir], ["contract-review", false, "contract-review"]);
+  assert.strictEqual(first.S.listFiles(sk).length, 10);
+  assert.match(first.S.readFile(sk, "references/redlines.md"), /RL-01/);
+  assert.strictEqual(first.S.isEnabled("user:contract-review"), true, "刚装上默认启用");
+
+  const raw = fs.readFileSync(path.join(BUNDLED_SRC, "SKILL.md"), "utf8").replace(/^name: contract-review$/m, "name: 合同评审");
+  const renamed = first.S.saveSkillMarkdown("user:contract-review", raw);
+  await first.S.whenSaved();
+  assert.deepStrictEqual([renamed.id, renamed.dir], ["user:合同评审", "合同评审"]);
+
+  // 关掉后再启动：不会被重新打开
+  first.S.setEnabled("user:合同评审", false);
+  const again = loadSkills(root);
+  again.kv.setItem("lingxi_skills_enabled_v1", first.kv.getItem("lingxi_skills_enabled_v1"));
+  again.kv.setItem("lingxi_skills_bundled_seen_v1", first.kv.getItem("lingxi_skills_bundled_seen_v1"));
+  await again.S.init();
+  assert.strictEqual(again.S.isEnabled("user:合同评审"), false);
+
+  again.S.removeUser("user:合同评审");
+  await again.S.whenSaved();
+  assert.deepStrictEqual(fs.readdirSync(root).filter((n) => !n.startsWith(".")), [], "可以删除");
+});

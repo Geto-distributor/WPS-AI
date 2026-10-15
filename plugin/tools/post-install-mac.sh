@@ -108,6 +108,10 @@ if [ $BUILD_RC -ne 0 ]; then
   exit 1
 fi
 
+# ---- 3b. 顺带安装技能（plugin/skills/*）：技能还在就不动，不在了才装；失败不影响安装 ----
+log "[post-install] 安装随包技能到 $TARGET/skills..."
+"$NODE_BIN" "$INSTALL_DIR/plugin/tools/install-bundled-skills.js" --skills "$INSTALL_DIR/plugin/skills" --root "$TARGET/skills" >>"$LOG" 2>&1 || true
+
 # ---- 4. 拷服务脚本 ----
 mkdir -p "$TARGET/tools"
 cp "$INSTALL_DIR/plugin/tools/serve-permanent.js" "$TARGET/tools/serve-permanent.js"
