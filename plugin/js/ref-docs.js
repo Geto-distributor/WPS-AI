@@ -43,8 +43,16 @@
   }
 
   // ===== 参考文档清单（按对话存） =====
+  // 参考文档挂在对话上；还没有对话（面板刚打开、没发过消息）时，先挂在「当前文档」名下的待定区。
+  // 待定区必须按文档区分：同一个面板会跟着切到别的文档（比如刚打开的参考文档 B），
+  // 各组件的面板也共用同一份存储——不分文档的话，B 的窗口、表格里的面板都会显示 A 添加的参考文档。
+  function pendingKey() {
+    let docKey = "";
+    try { docKey = String(global.WpsAiApp?.getCurrentDocKey?.() || ""); } catch (e) { docKey = ""; }
+    return "pending:" + docKey;
+  }
   function conversationId() {
-    try { return global.WpsAiConversations?.getCurrent?.()?.id || "default"; } catch (e) { return "default"; }
+    try { return global.WpsAiConversations?.getCurrent?.()?.id || pendingKey(); } catch (e) { return pendingKey(); }
   }
   function readAll() {
     try { const raw = global.WpsAiStore?.getItem?.(STORE_KEY); const v = raw ? JSON.parse(raw) : {}; return v && typeof v === "object" ? v : {}; } catch (e) { return {}; }
@@ -53,14 +61,19 @@
     try { global.WpsAiStore?.setItem?.(STORE_KEY, JSON.stringify(all)); } catch (e) {}
     listeners.forEach((cb) => { try { cb(); } catch (e) {} });
   }
-  // 面板刚打开、还没发过消息时没有对话，此时添加的参考文档先存在 "default" 下；
-  // 发第一条消息会新建对话（换了 id），这里把 default 里的并进当前对话，否则 AI 那一轮就看不到它们
+  // 发第一条消息会新建对话（换了 id）：把当前文档待定区里的并进这个对话，否则 AI 那一轮就看不到它们。
+  // 老版本不分文档的 "default" 待定区直接丢弃——分不清它属于哪份文档，并进来会串到别的文档上。
   function adoptPending(all, id) {
-    if (id === "default" || !Array.isArray(all.default) || !all.default.length) return false;
+    let changed = false;
+    if (Object.prototype.hasOwnProperty.call(all, "default")) { delete all.default; changed = true; }
+    if (id.indexOf("pending:") === 0) return changed;
+    const key = pendingKey();
+    const pending = all[key];
+    if (!Array.isArray(pending) || !pending.length) return changed;
     const cur = Array.isArray(all[id]) ? all[id] : [];
-    all.default.forEach((r) => { if (!cur.some((x) => normPath(x.path) === normPath(r.path))) cur.push(r); });
+    pending.forEach((r) => { if (!cur.some((x) => normPath(x.path) === normPath(r.path))) cur.push(r); });
     all[id] = cur;
-    delete all.default;
+    delete all[key];
     return true;
   }
   function list() {

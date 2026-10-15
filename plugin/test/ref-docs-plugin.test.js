@@ -190,10 +190,10 @@ test("还没发消息（没有对话）时添加的参考文档，发第一条�
   let conv = null;
   const { R, store } = load({ conversationId: () => conv });
   R.add(["C:\\a\\清单.xlsx", "D:\\b\\资料.pdf"]);
-  assert.deepStrictEqual(Object.keys(JSON.parse(store.getItem("lingxi_ref_docs_v1"))), ["default"]);
+  assert.deepStrictEqual(Object.keys(JSON.parse(store.getItem("lingxi_ref_docs_v1"))), ["pending:"]);
   conv = "c-new"; // 发第一条消息时新建了对话
   assert.deepStrictEqual(plain(R.list().map((r) => r.name)), ["清单.xlsx", "资料.pdf"], "AI 这一轮能看到它们");
-  assert.deepStrictEqual(Object.keys(JSON.parse(store.getItem("lingxi_ref_docs_v1"))), ["c-new"], "default 并入后清掉，不会再并给下一个对话");
+  assert.deepStrictEqual(Object.keys(JSON.parse(store.getItem("lingxi_ref_docs_v1"))), ["c-new"], "待定区并入后清掉，不会再并给下一个对话");
   conv = "c-other";
   assert.deepStrictEqual(plain(R.list()), []);
 });
@@ -239,3 +239,26 @@ test("跨类型打开后：接口切换之后再请后台服务「再打开一�
   assert.deepStrictEqual(same.focusCalls, []);
   assert.match(same.trace.relaunch, /同类型/);
 });
+
+test("还没开始对话时，参考文档按当前文档分开：切到别的文档（或在别的组件里打开面板）看不到 A 添加的", () => {
+  let docKey = "C:/a/A.docx";
+  let conv = null;
+  const { R, store } = load({ conversationId: () => conv, extra: { WpsAiApp: { getCurrentDocKey: () => docKey } } });
+  store.setItem("lingxi_ref_docs_v1", JSON.stringify({ default: [{ path: "X:/旧版本留下的.docx", name: "旧版本留下的.docx", kind: "word" }] }));
+  R.add(["C:/a/B.docx"]);
+  assert.deepStrictEqual(plain(R.list().map((r) => r.name)), ["B.docx"]);
+  assert.ok(!("default" in JSON.parse(store.getItem("lingxi_ref_docs_v1"))), "老版本不分文档的 default 待定区被丢弃");
+
+  docKey = "C:/a/B.docx"; // WPS 切到了刚打开的 B，面板跟着显示 B
+  assert.deepStrictEqual(plain(R.list()), [], "B 的窗口里不显示 A 添加的参考文档");
+  docKey = "id:excel-c";  // 表格里打开的面板
+  assert.deepStrictEqual(plain(R.list()), []);
+
+  docKey = "C:/a/A.docx"; // 回到 A，并开始对话
+  conv = "c-a";
+  assert.deepStrictEqual(plain(R.list().map((r) => r.name)), ["B.docx"], "A 的参考文档并入 A 的对话");
+  docKey = "C:/a/B.docx";
+  conv = "c-b"; // B 里开始了自己的对话
+  assert.deepStrictEqual(plain(R.list()), [], "B 的对话不会领走 A 的参考文档");
+});
+
