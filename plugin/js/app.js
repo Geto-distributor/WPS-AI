@@ -14478,7 +14478,9 @@
         const [instances, openDocs] = await Promise.all([get("/refs/instances"), get("/refs/open-docs")]);
         const self = { url: location.pathname, component: global.WpsAiRefDocs?._internal?.componentFromUrl?.() || "", instanceId: global.WpsAiRefDocs?._internal?.instanceId || "" };
         const lastOpen = global.WpsAiRefDocs?.lastOpenTrace?.() || null;
-        appendChatMsg("assistant", "```json\n" + JSON.stringify({ self, lastOpen, instances: instances.instances || instances, openDocs }, null, 2) + "\n```");
+        const refDocs = global.WpsAiRefDocs?.debugState?.() || null;
+        const conversation = { currentId: global.WpsAiConversations?.getCurrentId?.() || null, docKey: getCurrentDocKey(), docWatcherLog: _docWatcherLog.slice() };
+        appendChatMsg("assistant", "```json\n" + JSON.stringify({ self, refDocs, conversation, lastOpen, instances: instances.instances || instances, openDocs }, null, 2) + "\n```");
         return;
       }
       await runChatTurn(text);
@@ -17316,20 +17318,51 @@
     return false;
   }
 
+  // 同一个文件被 WPS 从磁盘重新载入时（比如参考文档打开后经启动程序「再打开一次」原文档切回来），
+  // 文档身份 id 当初只写在内存里、没存盘，就会丢：key 从 "id:X" 退回成路径，看起来像换了文档，
+  // 对话被清空。路径没变就把 id 补回去，当作没换文档。
+  let _lastDocPath = "";
+  const _docWatcherLog = []; // 最近的文档切换判定，/probe-open-files 会显示
+  function logDocWatcher(event, data) {
+    _docWatcherLog.push(Object.assign({ at: new Date().toISOString().slice(11, 19), event }, data || {}));
+    if (_docWatcherLog.length > 12) _docWatcherLog.shift();
+  }
+  function currentDocPathForWatcher() {
+    try { return String(global.WpsAiBackup?.getCurrentDocPath?.() || ""); } catch (e) { return ""; }
+  }
+  function samePath(a, b) {
+    return !!a && !!b && a.replace(/\\/g, "/").toLowerCase() === b.replace(/\\/g, "/").toLowerCase();
+  }
+  function restoreDocIdAfterReload(prevKey, nowKey, nowPath) {
+    if (!prevKey.startsWith("id:") || nowKey.startsWith("id:") || !samePath(nowPath, _lastDocPath)) return false;
+    const id = prevKey.slice(3);
+    try { return global.WpsAiBackup?.writeDocId?.(id) === id; } catch (e) { return false; }
+  }
+
   function startDocWatcher(onDocChanged) {
     if (_docWatcherTimer) return;
     _lastDocKey = getCurrentDocKey();
+    _lastDocPath = currentDocPathForWatcher();
     _cachedDocKey = _lastDocKey;
     _docWatcherTimer = setInterval(() => {
       try {
         const now = getCurrentDocKey();
+        const nowPath = currentDocPathForWatcher();
+        if (now !== _lastDocKey && restoreDocIdAfterReload(_lastDocKey, now, nowPath)) {
+          try { global.WpsAiLog?.log?.("doc-watcher:restored-doc-id", { path: nowPath }); } catch (e) {}
+          logDocWatcher("同一文件重新载入，已补回文档身份", { path: nowPath });
+          return; // id 已补回，key 不变，对话照常
+        }
+        _lastDocPath = nowPath;
         if (now !== _lastDocKey) {
           const prev = _lastDocKey;
           _lastDocKey = now;
           _cachedDocKey = now;
           if (shouldRebindDocKeyDuringChat(prev, now) && rebindCurrentConversationDocKey(now, prev)) {
+            logDocWatcher("对话中文档身份更新，对话保持", { prev, now });
             return;
           }
+          logDocWatcher("判定为切换了文档，清空当前对话", { prev, now, path: nowPath });
           try { onDocChanged?.(now, prev); } catch (e) {}
         }
       } catch (e) {}

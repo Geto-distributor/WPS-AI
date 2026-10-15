@@ -506,6 +506,13 @@
     pick, openInWps, listOpenDocs, read,
     kindOf, baseName, normPath,
     lastOpenTrace: () => lastOpenTrace,
+    // 诊断：参考文档挂在哪个对话上，各对话各有几份
+    debugState: () => {
+      const all = readAll();
+      const buckets = {};
+      Object.keys(all).forEach((k) => { buckets[k] = Array.isArray(all[k]) ? all[k].map((r) => r.name) : all[k]; });
+      return { conversationId: conversationId(), buckets };
+    },
     _internal: { collectOpenDocs, readOpenDocument, readWorkbook, readWordDoc, readPresentation, assemble, instanceId, componentFromUrl, pickViaWps }
   };
 })(window);
